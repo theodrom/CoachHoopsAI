@@ -1,0 +1,30 @@
+{
+  "team": {
+    "points": 88,
+    "fieldGoalPercentage": 0.46,
+    "threePointPercentage": 0.34,
+    "threePointAttempts": 26,
+    "offensiveRebounds": 10,
+    "defensiveRebounds": 25,
+    "turnovers": 12,
+    "fouls": 17
+  },
+  "opponent": {
+    "points": 97,
+    "fieldGoalPercentage": 0.49,
+    "threePointPercentage": 0.41,
+    "threePointAttempts": 28,
+    "offensiveRebounds": 9,
+    "defensiveRebounds": 23,
+    "turnovers": 11,
+    "fouls": 15
+  },
+  "level": "Amateur",
+  "notes": "We were late on closeouts and gave up corner threes.",
+  "gameDate": "2026-01-03T16:00:00",
+  "teamName": "Northside Lions",
+  "opponentName": "City Rangers",
+  "competition": "Division 4",
+  "season": "2025/2026",
+  "location": "Solna"
+}

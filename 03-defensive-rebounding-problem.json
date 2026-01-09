@@ -1,0 +1,30 @@
+{
+  "team": {
+    "points": 84,
+    "fieldGoalPercentage": 0.44,
+    "threePointPercentage": 0.33,
+    "threePointAttempts": 21,
+    "offensiveRebounds": 7,
+    "defensiveRebounds": 19,
+    "turnovers": 13,
+    "fouls": 20
+  },
+  "opponent": {
+    "points": 90,
+    "fieldGoalPercentage": 0.45,
+    "threePointPercentage": 0.32,
+    "threePointAttempts": 20,
+    "offensiveRebounds": 15,
+    "defensiveRebounds": 26,
+    "turnovers": 12,
+    "fouls": 18
+  },
+  "level": "Youth",
+  "notes": "They got multiple second-chance points. We didn't box out.",
+  "gameDate": "2025-12-14T12:30:00",
+  "teamName": "West U16",
+  "opponentName": "East U16",
+  "competition": "U16 League",
+  "season": "2025/2026",
+  "location": "Uppsala"
+}

@@ -1,0 +1,30 @@
+{
+  "team": {
+    "points": 71,
+    "fieldGoalPercentage": 0.41,
+    "threePointPercentage": 0.26,
+    "threePointAttempts": 29,
+    "offensiveRebounds": 11,
+    "defensiveRebounds": 24,
+    "turnovers": 11,
+    "fouls": 19
+  },
+  "opponent": {
+    "points": 76,
+    "fieldGoalPercentage": 0.44,
+    "threePointPercentage": 0.33,
+    "threePointAttempts": 21,
+    "offensiveRebounds": 10,
+    "defensiveRebounds": 25,
+    "turnovers": 14,
+    "fouls": 21
+  },
+  "level": "Amateur",
+  "notes": "We settled for early threes and didn't get paint touches.",
+  "gameDate": "2025-11-22T18:00:00",
+  "teamName": "Southside Bears",
+  "opponentName": "Old Town Kings",
+  "competition": "Division 5",
+  "season": "2025/2026",
+  "location": "Sundbyberg"
+}

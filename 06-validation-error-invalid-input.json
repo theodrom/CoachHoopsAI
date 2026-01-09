@@ -1,0 +1,30 @@
+{
+  "team": {
+    "points": -5,
+    "fieldGoalPercentage": 1.25,
+    "threePointPercentage": -0.1,
+    "threePointAttempts": -3,
+    "offensiveRebounds": -2,
+    "defensiveRebounds": 10,
+    "turnovers": -1,
+    "fouls": 30
+  },
+  "opponent": {
+    "points": 90,
+    "fieldGoalPercentage": 0.47,
+    "threePointPercentage": 0.39,
+    "threePointAttempts": 25,
+    "offensiveRebounds": 12,
+    "defensiveRebounds": 24,
+    "turnovers": 10,
+    "fouls": 15
+  },
+  "level": "KidsLeague",
+  "notes": "Invalid test case to trigger validation errors.",
+  "gameDate": "1800-01-01T00:00:00",
+  "teamName": "This team name is intentionally made way too long to violate the maximum length constraint that we defined for validation purposes in the API layer",
+  "opponentName": "Opponent",
+  "competition": "Test League",
+  "season": "2025/2026",
+  "location": "Test Gym"
+}

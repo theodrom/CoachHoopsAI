@@ -1,0 +1,30 @@
+{
+  "team": {
+    "points": 77,
+    "fieldGoalPercentage": 0.42,
+    "threePointPercentage": 0.29,
+    "threePointAttempts": 34,
+    "offensiveRebounds": 10,
+    "defensiveRebounds": 24,
+    "turnovers": 12,
+    "fouls": 19
+  },
+  "opponent": {
+    "points": 83,
+    "fieldGoalPercentage": 0.45,
+    "threePointPercentage": 0.34,
+    "threePointAttempts": 24,
+    "offensiveRebounds": 9,
+    "defensiveRebounds": 25,
+    "turnovers": 11,
+    "fouls": 18
+  },
+  "level": "Amateur",
+  "notes": "We took too many quick threes and didn't get into the paint early.",
+  "gameDate": "2025-12-08T19:30:00",
+  "teamName": "South City Jets",
+  "opponentName": "Metro Panthers",
+  "competition": "Division 4",
+  "season": "2025/2026",
+  "location": "Solna"
+}

@@ -1,0 +1,30 @@
+{
+  "team": {
+    "points": 24,
+    "fieldGoalPercentage": 0.28,
+    "threePointPercentage": 0.00,
+    "threePointAttempts": 0,
+    "offensiveRebounds": 4,
+    "defensiveRebounds": 9,
+    "turnovers": 16,
+    "fouls": 18
+  },
+  "opponent": {
+    "points": 31,
+    "fieldGoalPercentage": 0.32,
+    "threePointPercentage": 0.00,
+    "threePointAttempts": 0,
+    "offensiveRebounds": 3,
+    "defensiveRebounds": 10,
+    "turnovers": 6,
+    "fouls": 10
+  },
+  "level": "EasyBasket",
+  "notes": "Kids were rushing passes and reaching on defense.",
+  "gameDate": "2025-10-05T10:00:00",
+  "teamName": "Mini Hoops Blue",
+  "opponentName": "Mini Hoops Red",
+  "competition": "EasyBasket Festival",
+  "season": "2025/2026",
+  "location": "Vällingby"
+}

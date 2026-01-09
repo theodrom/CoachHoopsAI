@@ -1,0 +1,30 @@
+{
+  "team": {
+    "points": 78,
+    "fieldGoalPercentage": 0.43,
+    "threePointPercentage": 0.31,
+    "threePointAttempts": 18,
+    "offensiveRebounds": 9,
+    "defensiveRebounds": 22,
+    "turnovers": 20,
+    "fouls": 18
+  },
+  "opponent": {
+    "points": 92,
+    "fieldGoalPercentage": 0.48,
+    "threePointPercentage": 0.34,
+    "threePointAttempts": 22,
+    "offensiveRebounds": 8,
+    "defensiveRebounds": 24,
+    "turnovers": 10,
+    "fouls": 16
+  },
+  "level": "Amateur",
+  "notes": "We gave up too many run-outs after live-ball turnovers.",
+  "gameDate": "2026-01-06T19:00:00",
+  "teamName": "Bromma Wolves",
+  "opponentName": "S�der Hawks",
+  "competition": "Division 3",
+  "season": "2025/2026",
+  "location": "Stockholm"
+}
