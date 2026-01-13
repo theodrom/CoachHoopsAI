@@ -80,6 +80,5 @@ These samples should be used to verify system behavior after any rule or AI chan
 - No persistence
 - No UI
 - No authentication
-- No real AI provider yet
 
 These will be introduced in later versions once the core analysis stabilizes.
