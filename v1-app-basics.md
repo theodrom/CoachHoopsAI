@@ -1,4 +1,4 @@
-# V1 (Current)
+# V1 (Completed)
 
 - Deterministic rules engine
 - Diagnostics

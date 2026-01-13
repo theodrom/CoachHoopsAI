@@ -11,4 +11,6 @@ The project is intentionally built in phases:
 - AI integration
 - persistence and UI later
 
-Current version: **V1.3**
+V2.0 introduces real AI integration with structured, explainable outputs.
+
+Current version: **V2.0**

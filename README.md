@@ -4,12 +4,14 @@ CoachHoopsAI is an AI-assisted basketball coaching analysis platform.
 
 The system analyzes team and opponent game statistics, applies configurable basketball rules, detects problem areas, and generates actionable coaching suggestions tailored to the competition context.
 
-The current version (**V1.3**) focuses on:
+The current version (**V2.0**) includes:
 - deterministic, explainable rule-based analysis
 - configurable rule thresholds via Rules Profiles
-- strong API validation
-- diagnostics for transparency and tuning
-- AI-ready architecture (currently using a fake AI client)
+- real AI-powered coaching suggestions
+- structured, schema-validated AI output
+- diagnostics used as AI grounding
+- strong API validation and regression samples
+
 
 ---
 
@@ -51,6 +53,14 @@ Rules are no longer hardcoded.
 - Profiles are currently configured via `appsettings.json`
 
 This enables “levels inside levels” (e.g. development vs advanced teams).
+
+### AI Integration (V2.0)
+AI suggestions are generated using a real LLM via the OpenAI Responses API.
+
+- Deterministic rules and diagnostics provide grounding
+- Suggestions are returned as structured JSON (schema enforced)
+- AI is isolated behind an interface and can be swapped or disabled
+- A fake AI client remains available for development and testing
 
 ---
 

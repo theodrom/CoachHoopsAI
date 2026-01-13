@@ -8,11 +8,12 @@ It allows CoachHoopsAI to integrate with external systems without affecting core
 
 ---
 
-## Current State
+## Current State (V2.0)
 
-- Provides FakeSuggestionClient implementing ILlmSuggestionClient
-- Generates deterministic placeholder suggestions
-- Enables full end-to-end execution without real AI dependencies
+- Provides a real OpenAI-backed LLM client using the Responses API
+- Enforces structured outputs via JSON Schema
+- Uses diagnostics and rule signals as AI grounding
+- Includes a FakeSuggestionClient fallback for development and testing
 
 ---
 
@@ -41,4 +42,14 @@ It allows CoachHoopsAI to integrate with external systems without affecting core
 
 ## Notes
 
-This project is expected to evolve significantly once real AI providers and persistence are introduced.
+This project is expected to evolve significantly once real AI providers and persistence are introduced(v1.3).
+
+---
+
+## AI Design Principles (v2.0)
+
+- AI does not make decisions; it provides suggestions
+- Deterministic rules remain the source of truth
+- Diagnostics are passed explicitly to avoid hallucination
+- All AI output must conform to a strict schema
+

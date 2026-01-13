@@ -39,6 +39,7 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Docs", "Docs", "{AC6F2F53-6
 		05-diagnostics.md = 05-diagnostics.md
 		06-validation.md = 06-validation.md
 		07-samples.md = 07-samples.md
+		08-ai-integration.md = 08-ai-integration.md
 	EndProjectSection
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Adr", "Adr", "{E167C401-E9E5-4883-840F-A909FDA28EB7}"
@@ -50,8 +51,9 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Adr", "Adr", "{E167C401-E9E
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "Roadmap", "Roadmap", "{A2D02D14-CFA0-4414-BFC5-0A0FD39D70BC}"
 	ProjectSection(SolutionItems) = preProject
-		v1-current.md = v1-current.md
-		v2-future.md = v2-future.md
+		v1-app-basics.md = v1-app-basics.md
+		v3-future.md = v3-future.md
+		v2-ai-integration(current).md = v2-ai-integration(current).md
 	EndProjectSection
 EndProject
 Global

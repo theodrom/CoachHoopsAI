@@ -33,3 +33,9 @@ CoachHoopsAI follows a strict layered architecture.
 - Explainable outputs
 - No premature persistence or UI
 - AI isolated behind interfaces
+
+### AI Integration
+- Uses OpenAI Responses API
+- Structured outputs enforced via JSON Schema
+- AI clients are swappable via DI
+

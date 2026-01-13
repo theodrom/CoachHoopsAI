@@ -7,24 +7,39 @@ using FluentValidation;
 
 var builder = WebApplication.CreateBuilder(args);
 
-// Add services to the container.
-
 builder.Services.AddControllers();
+
 // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
 builder.Services.AddOpenApi();
 
+// Validators
 builder.Services.AddScoped<IValidator<AnalyzeGameRequest>, AnalyzeGameRequestValidator>();
 builder.Services.AddScoped<IValidator<TeamStatsDto>, TeamStatsDtoValidator>();
 
 // Domain
-builder.Services.AddSingleton<CoachHoopsAI.Domain.Rules.IStatRulesEngine, CoachHoopsAI.Domain.Rules.StatRulesEngine>();
+builder.Services.AddSingleton<IStatRulesEngine, StatRulesEngine>();
+
 // Application
 builder.Services.AddScoped<IGameAnalysisService, CoachHoopsAI.Application.Services.GameAnalysisService>();
-// Infrastructure (fake AI for now)
-builder.Services.AddScoped<ILlmSuggestionClient, FakeSuggestionClient>();
 
 builder.Services.Configure<RulesProfilesOptions>(builder.Configuration.GetSection("RulesProfiles"));
 builder.Services.AddSingleton<IRulesProfileProvider, RulesProfileProvider>();
+
+//OpenAI Client
+builder.Services.Configure<OpenAiOptions>(builder.Configuration.GetSection("OpenAI"));
+var aiProvider = builder.Configuration["Ai:Provider"]?.Trim();
+
+// Toggle AI provider
+if (string.Equals(aiProvider, "OpenAI", StringComparison.OrdinalIgnoreCase))
+{
+    // HttpClient for OpenAI
+    builder.Services.AddHttpClient<ILlmSuggestionClient, OpenAiSuggestionClientHttp>();
+}
+else
+{
+    // Use fake AI client
+    builder.Services.AddScoped<ILlmSuggestionClient, FakeSuggestionClient>();
+}
 
 var app = builder.Build();
 
