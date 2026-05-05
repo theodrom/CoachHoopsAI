@@ -16,6 +16,7 @@ It coordinates rule evaluation, diagnostics calculation, rules profile resolutio
 - Calculate diagnostics
 - Define application models
 - Expose interfaces for infrastructure implementations
+- Orchestrate persistence of analysis history (V2.1)
 
 ---
 
@@ -23,6 +24,7 @@ It coordinates rule evaluation, diagnostics calculation, rules profile resolutio
 
 ### Services
 - GameAnalysisService
+- AnalysisHistoryService *(V2.1)* — runs analysis then persists an immutable `AnalysisRecord`, stamping `RulesetVersion` and `PromptVersion`
 
 ### Rules
 - IRulesProfileProvider
@@ -34,10 +36,16 @@ It coordinates rule evaluation, diagnostics calculation, rules profile resolutio
 - GameAnalysisResult
 - GameDiagnostics
 - GameMetadata
+- AnalysisRecord *(V2.1)*
+- AnalysisRecordListItem *(V2.1)*
+- AnalysisSearchQuery *(V2.1)*
+- PagedResult&lt;T&gt; *(V2.1)*
 
 ### Interfaces
 - IGameAnalysisService
 - ILlmSuggestionClient
+- IAnalysisHistoryService *(V2.1)*
+- IAnalysisRepository *(V2.1)* — implemented by `CoachHoopsAI.Persistence`
 
 ---
 
