@@ -2,6 +2,8 @@
 {
     public class AnalyzeGameResponse
     {
+        public Guid AnalysisId { get; set; }
+
         public List<string>? ProblemTags { get; set; }
 
         public SuggestionsResponse Suggestions { get; set; } = new SuggestionsResponse();

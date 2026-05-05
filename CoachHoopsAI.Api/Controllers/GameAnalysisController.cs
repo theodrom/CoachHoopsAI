@@ -10,7 +10,7 @@ namespace CoachHoopsAI.Api.Controllers
 {
     [ApiController]
     [Route("api/game-analysis")]
-    public class GameAnalysisController(IGameAnalysisService gameAnalysisService, IValidator<AnalyzeGameRequest> validator) : ControllerBase
+    public class GameAnalysisController(IAnalysisHistoryService analysisHistoryService, IValidator<AnalyzeGameRequest> validator) : ControllerBase
     {
         [HttpPost]
         public async Task<ActionResult<AnalyzeGameResponse>> AnalyzeGame([FromBody] AnalyzeGameRequest request)
@@ -28,8 +28,12 @@ namespace CoachHoopsAI.Api.Controllers
             }
 
             var input = request.ToGameAnalysisInput();
-            var result = await gameAnalysisService.AnalyzeAsync(input);
-            return Ok(result.ToResponseDto());
+            var (result, analysisId) = await analysisHistoryService.AnalyzeAndStoreAsync(input);
+
+            var dto = result.ToResponseDto();
+            if (dto != null) dto.AnalysisId = analysisId;
+
+            return Ok(dto);
         }
     }
 }

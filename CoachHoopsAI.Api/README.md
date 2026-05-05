@@ -29,10 +29,35 @@ Accepts:
 - Optional rules profile override
 
 Returns:
+- `AnalysisId` (Guid) of the persisted analysis record (V2.1)
 - Detected ProblemTags
 - Coaching suggestions grouped by category
 - Diagnostics explaining stat differences
 - Applied rules profile name
+
+Every successful request is persisted via `IAnalysisHistoryService` before the response is returned.
+
+### GET /api/analyses/{id}  *(V2.1)*
+
+Returns the full stored `AnalysisRecord` for the given id (input snapshot, problem tags, diagnostics, suggestions, ruleset/prompt versions, applied profile, timestamps).
+
+Returns `404` if the id does not exist.
+
+### GET /api/analyses  *(V2.1)*
+
+Paged search over historical analyses. Query parameters:
+
+| Name | Type | Notes |
+|------|------|-------|
+| `teamName` | string | optional filter |
+| `level` | string | optional filter (`EasyBasket`, `Youth`, `Amateur`, `Pro`) |
+| `tag` | string | optional ProblemTag filter |
+| `fromUtc` | DateTime | optional inclusive lower bound on `CreatedUtc` |
+| `toUtc` | DateTime | optional inclusive upper bound on `CreatedUtc` |
+| `page` | int | defaults to `1` |
+| `pageSize` | int | defaults to `20` |
+
+Returns a `PagedResult<AnalysisRecordListItem>`.
 
 ---
 
@@ -50,7 +75,7 @@ Returns:
 - No business logic
 - No basketball rules
 - No AI calls
-- No persistence
+- No direct database access (delegated to `CoachHoopsAI.Persistence` via Application interfaces)
 
 ---
 
@@ -59,3 +84,10 @@ Returns:
 - CoachHoopsAI.Application
 - CoachHoopsAI.Domain
 - CoachHoopsAI.Infrastructure
+- CoachHoopsAI.Persistence (registered for DI; not referenced by controllers directly)
+
+---
+
+## Configuration (V2.1)
+
+Requires a SQL Server connection string at `ConnectionStrings:CoachHoopsAI` in `appsettings.json` (or user-secrets / environment). The application fails fast at startup if it is missing.

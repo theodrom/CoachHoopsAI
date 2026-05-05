@@ -1,11 +1,22 @@
 using CoachHoopsAI.Api.Contracts;
 using CoachHoopsAI.Api.Validators;
 using CoachHoopsAI.Application.Interfaces;
+using CoachHoopsAI.Application.Services;
 using CoachHoopsAI.Domain.Rules;
 using CoachHoopsAI.Infrastructure.AI;
+using CoachHoopsAI.Persistence;
+using CoachHoopsAI.Persistence.Repositories;
 using FluentValidation;
+using Microsoft.EntityFrameworkCore;
 
 var builder = WebApplication.CreateBuilder(args);
+
+
+var cs = builder.Configuration.GetConnectionString("CoachHoopsAI");
+if (string.IsNullOrWhiteSpace(cs))
+    throw new InvalidOperationException("Missing connection string: ConnectionStrings:CoachHoopsAI");
+
+builder.Services.AddDbContext<CoachHoopsAIDbContext>(opt => opt.UseSqlServer(cs));
 
 builder.Services.AddControllers();
 
@@ -24,6 +35,9 @@ builder.Services.AddScoped<IGameAnalysisService, CoachHoopsAI.Application.Servic
 
 builder.Services.Configure<RulesProfilesOptions>(builder.Configuration.GetSection("RulesProfiles"));
 builder.Services.AddSingleton<IRulesProfileProvider, RulesProfileProvider>();
+
+builder.Services.AddScoped<IAnalysisRepository, AnalysisRepository>();
+builder.Services.AddScoped<IAnalysisHistoryService, AnalysisHistoryService>();
 
 //OpenAI Client
 builder.Services.Configure<OpenAiOptions>(builder.Configuration.GetSection("OpenAI"));

@@ -10,12 +10,17 @@
   <ItemGroup>
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="9.0.9" />
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="9.0.13">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
   </ItemGroup>
 
   <ItemGroup>
     <ProjectReference Include="..\CoachHoopsAI.Application\CoachHoopsAI.Application.csproj" />
     <ProjectReference Include="..\CoachHoopsAI.Domain\CoachHoopsAI.Domain.csproj" />
     <ProjectReference Include="..\CoachHoopsAI.Infrastructure\CoachHoopsAI.Infrastructure.csproj" />
+    <ProjectReference Include="..\CoachHoopsAI.Persistence\CoachHoopsAI.Persistence.csproj" />
   </ItemGroup>
 
 </Project>
