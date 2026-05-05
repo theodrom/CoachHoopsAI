@@ -51,8 +51,11 @@ namespace CoachHoopsAI.Infrastructure.AI
             GameAnalysisInput input,
             IReadOnlyCollection<ProblemTag> problemTags)
         {
+            // TODO: once ILlmSuggestionClient is widened to receive GameDiagnostics
+            // (and the applied rules profile name), forward them here as the last two
+            // arguments. The prompt builders already handle the case where they are null.
             var system = BuildSystemPrompt(input.Level);
-            var user = BuildUserPrompt(input, problemTags);
+            var user = BuildUserPrompt(input, problemTags, diagnostics: null, appliedRulesProfile: null);
 
             var schema = BuildJsonSchema();
 
@@ -172,48 +175,111 @@ namespace CoachHoopsAI.Infrastructure.AI
             };
         }
 
-        private static string BuildSystemPrompt(Level level) => level switch
+        private static string BuildSystemPrompt(Level level)
         {
-            Level.EasyBasket =>
-                "You are a youth basketball coach (EasyBasket). Keep advice simple, positive, and drill-oriented. Avoid tactical jargon.",
-            Level.Youth =>
-                "You are a youth basketball coach. Provide practical adjustments for the next practice and next game.",
-            Level.Amateur =>
-                "You are a basketball coach for amateur adult teams. Provide actionable coaching suggestions across offense, defense, and habits.",
-            Level.Pro =>
-                "You are a professional basketball coach. Provide concise, high-signal tactical adjustments when appropriate.",
-            _ =>
-                "You are a basketball coach. Provide practical, actionable adjustments."
-        };
+            // Universal hard rules every level must obey. These are restated in the
+            // user prompt as well, but the system prompt is the strongest channel.
+            const string core =
+                "You are an experienced basketball coach helping another coach prepare the next practice and the next game. " +
+                "Your job is to produce between 3 and 10 concrete, actionable coaching suggestions for the team described in the user message, " +
+                "prioritizing the highest-impact issues. Quality over quantity: it is correct to return fewer suggestions if only a few issues truly matter.\n\n" +
+                "Hard rules (apply to every suggestion you produce):\n" +
+                "1. ProblemTags and Diagnostics are the primary grounding signals. Every suggestion's \"reason\" must explicitly reference at least one ProblemTag " +
+                "or a specific Diagnostics field from the user JSON.\n" +
+                "2. Never invent, estimate or round statistics. Only mention numbers that appear verbatim in the provided JSON. " +
+                "If a number is not present, do not cite a number.\n" +
+                "3. Never produce generic platitudes such as \"play harder\", \"communicate better\", \"stay focused\", \"want it more\", " +
+                "\"box out\" with no detail, etc. A suggestion is only acceptable if it names a concrete, observable action: " +
+                "a specific drill, a specific defensive coverage, a specific spacing/possession adjustment, or a specific role assignment.\n" +
+                "4. Pick the top issues. Do not try to cover every possible weakness.\n" +
+                "5. Each suggestion's \"category\" must be exactly one of: \"Offense\", \"Defense\", \"Other\".\n" +
+                "6. Output strictly valid JSON that conforms to the provided JSON Schema. No prose, no markdown, no comments, no trailing text.\n";
 
-        private static string BuildUserPrompt(GameAnalysisInput input, IReadOnlyCollection<ProblemTag> tags)
+            // Level-specific tone and vocabulary guardrails.
+            var levelGuide = level switch
+            {
+                Level.EasyBasket =>
+                    "\nLevel guidance (EasyBasket - young children):\n" +
+                    "- Use very simple, positive, encouraging language.\n" +
+                    "- Focus exclusively on fundamentals: footwork, ball-handling, passing, layups, basic spacing, hustle plays.\n" +
+                    "- Forbidden vocabulary: \"pick-and-roll\", \"ICE\", \"drop coverage\", \"weak-side rotation\", \"horns\", \"hedge\", \"switch coverage\", " +
+                    "\"closeout\", \"trap\", \"zone\". No tactical jargon at all.\n" +
+                    "- Each suggestion should read like a short practice activity a child can immediately understand.",
+                Level.Youth =>
+                    "\nLevel guidance (Youth):\n" +
+                    "- Use simple tactical concepts only: help-side defense, deny the wing, basic pick-and-roll defense, transition lanes, boxing out.\n" +
+                    "- Prefer practice-ready drills: name the drill, the setup, and the coaching point.\n" +
+                    "- Avoid advanced jargon and avoid coverage acronyms.",
+                Level.Amateur =>
+                    "\nLevel guidance (Amateur adult teams):\n" +
+                    "- Provide practical in-game adjustments: matchups, tempo, set-piece tweaks, rebounding assignments, foul management.\n" +
+                    "- Tactical vocabulary is acceptable when briefly grounded (one short clause of explanation).",
+                Level.Pro =>
+                    "\nLevel guidance (Pro):\n" +
+                    "- Concise, high-signal tactical language is expected (coverages, rotations, ATO concepts, lineup considerations).\n" +
+                    "- Avoid drill-heavy or instructional phrasing; assume the reader is a professional staff.",
+                _ =>
+                    "\nLevel guidance: provide practical, actionable adjustments at an amateur level."
+            };
+
+            return core + levelGuide;
+        }
+
+        private static string BuildUserPrompt(
+            GameAnalysisInput input,
+            IReadOnlyCollection<ProblemTag> tags,
+            GameDiagnostics? diagnostics,
+            string? appliedRulesProfile)
         {
+            // Build a clean, named JSON payload. Only fields with real content are
+            // included; absent data is emitted as null so the model never sees an
+            // empty stub it could mistake for a signal.
             var payload = new
             {
                 level = input.Level.ToString(),
-                rulesProfileRequested = input.RulesProfile,
+                rulesProfileRequested = string.IsNullOrWhiteSpace(input.RulesProfile) ? null : input.RulesProfile,
+                rulesProfileApplied = string.IsNullOrWhiteSpace(appliedRulesProfile)
+                    ? (diagnostics?.AppliedRulesProfile)
+                    : appliedRulesProfile,
                 metadata = input.Metadata,
-                notes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
+                coachNotes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
                 team = input.Team,
                 opponent = input.Opponent,
                 problemTags = tags.Select(t => t.ToString()).ToArray(),
-                diagnostics = new
+                diagnostics = diagnostics is null ? null : new
                 {
-                    // Later include diagnostics object here
+                    diagnostics.PointsDiff,
+                    diagnostics.TurnoversDiff,
+                    diagnostics.OffensiveReboundsDiff,
+                    diagnostics.DefensiveReboundsDiff,
+                    diagnostics.ThreePointPctDiff,
+                    diagnostics.ThreePointAttemptsDiff,
+                    diagnostics.FoulsDiff,
+                    diagnostics.TeamFieldGoalPercentage,
+                    diagnostics.OpponentFieldGoalPercentage,
+                    diagnostics.FieldGoalPctDiff
                 }
             };
 
-            return
-                "You will receive a JSON payload describing a basketball game.\n" +
-                "Task: generate 3–10 specific coaching suggestions.\n" +
-                "Rules:\n" +
-                "- Use ProblemTags as the primary signals.\n" +
-                "- Tailor advice to the Level.\n" +
-                "- Keep suggestions actionable (what to do in the next practice or next game).\n" +
-                "- Avoid generic advice.\n" +
-                "- Do not invent stats.\n" +
-                "Return ONLY JSON that matches the provided schema.\n\n" +
-                JsonSerializer.Serialize(payload, JsonOpts);
+            var directive =
+                "You will receive a JSON payload describing one basketball game.\n" +
+                "Task: produce 3 to 10 concrete coaching suggestions, prioritizing the top issues.\n" +
+                "\n" +
+                "Grounding requirements:\n" +
+                "- Treat \"problemTags\" and \"diagnostics\" as the primary signals. Anchor every suggestion's \"reason\" to at least one of them.\n" +
+                "- \"team\", \"opponent\" and \"metadata\" provide context only; do not summarize them back to the coach.\n" +
+                "- \"coachNotes\" may surface concerns the stats cannot show; weight them, but do not fabricate stats to support them.\n" +
+                "- Tailor wording to \"level\" and to the level guidance in the system message.\n" +
+                "- If \"problemTags\" is empty AND \"diagnostics\" shows no clear weakness, return only 3 maintenance-oriented suggestions tied to what is working.\n" +
+                "\n" +
+                "Output requirements:\n" +
+                "- Return ONLY a JSON object that matches the provided schema.\n" +
+                "- Each suggestion: \"category\" in {Offense, Defense, Other}, \"text\" is the action, \"reason\" cites the grounding tag/metric.\n" +
+                "- No invented numbers. No generic advice. No markdown. No commentary outside the JSON.\n" +
+                "\n" +
+                "Game payload:\n";
+
+            return directive + JsonSerializer.Serialize(payload, JsonOpts);
         }
 
         /// <summary>
