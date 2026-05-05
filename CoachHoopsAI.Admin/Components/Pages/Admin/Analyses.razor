@@ -1,0 +1,132 @@
+@page "/admin/analyses"
+@rendermode InteractiveServer
+@using CoachHoopsAI.Admin.Models
+@using CoachHoopsAI.Admin.Services
+@inject IAnalysisApiClient Api
+@inject NavigationManager Nav
+
+<PageTitle>Analyses</PageTitle>
+
+<h1>Analysis history</h1>
+
+@if (_loading)
+{
+    <div class="alert alert-info" role="status">Loading analyses…</div>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger" role="alert">
+        <strong>Could not load analyses.</strong>
+        <div>@_error</div>
+        <button class="btn btn-sm btn-outline-danger mt-2" @onclick="LoadAsync">Retry</button>
+    </div>
+}
+else if (_page is null || _page.Items.Count == 0)
+{
+    <div class="alert alert-secondary">No analyses found.</div>
+}
+else
+{
+    <p class="text-muted small mb-2">
+        Showing page @_page.Page of @TotalPages (@_page.Total total)
+    </p>
+
+    <div class="table-responsive">
+        <table class="table table-striped table-sm align-middle">
+            <thead>
+                <tr>
+                    <th>CreatedUtc</th>
+                    <th>GameDate</th>
+                    <th>Team</th>
+                    <th>Opponent</th>
+                    <th>Level</th>
+                    <th>Applied profile</th>
+                    <th>ProblemTags</th>
+                    <th>AiModel</th>
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in _page.Items)
+                {
+                    <tr>
+                        <td>@row.CreatedUtc.ToString("yyyy-MM-dd HH:mm")</td>
+                        <td>@(row.GameDate?.ToString("yyyy-MM-dd") ?? "—")</td>
+                        <td>@(row.TeamName ?? "—")</td>
+                        <td>@(row.OpponentName ?? "—")</td>
+                        <td>@row.Level</td>
+                        <td>@row.AppliedRulesProfile</td>
+                        @* ProblemTags and AiModel are not on the list DTO yet; available on the detail page. *@
+                        <td class="text-muted">—</td>
+                        <td class="text-muted">—</td>
+                        <td>
+                            <a class="btn btn-sm btn-outline-primary"
+                               href="@($"/admin/analyses/{row.Id}")">Details</a>
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+
+    <div class="d-flex gap-2">
+        <button class="btn btn-outline-secondary"
+                disabled="@(_query.Page <= 1)"
+                @onclick="PrevPage">Previous</button>
+        <button class="btn btn-outline-secondary"
+                disabled="@(_query.Page >= TotalPages)"
+                @onclick="NextPage">Next</button>
+    </div>
+}
+
+@code {
+    private bool _loading = true;
+    private string? _error;
+    private PagedResultDto<AnalysisRecordListItemDto>? _page;
+    private AnalysisSearchQueryDto _query = new() { Page = 1, PageSize = 20 };
+
+    private int TotalPages =>
+        _page is null || _page.PageSize <= 0
+            ? 1
+            : Math.Max(1, (int)Math.Ceiling(_page.Total / (double)_page.PageSize));
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        StateHasChanged();
+
+        try
+        {
+            _page = await Api.SearchAsync(_query);
+        }
+        catch (ApiClientException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Unexpected error: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private Task PrevPage()
+    {
+        if (_query.Page <= 1) return Task.CompletedTask;
+        _query = new AnalysisSearchQueryDto { Page = _query.Page - 1, PageSize = _query.PageSize };
+        return LoadAsync();
+    }
+
+    private Task NextPage()
+    {
+        if (_query.Page >= TotalPages) return Task.CompletedTask;
+        _query = new AnalysisSearchQueryDto { Page = _query.Page + 1, PageSize = _query.PageSize };
+        return LoadAsync();
+    }
+}

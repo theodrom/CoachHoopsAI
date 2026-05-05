@@ -1,0 +1,235 @@
+@page "/admin/analyses/{Id:guid}"
+@rendermode InteractiveServer
+@using System.Text.Json
+@using CoachHoopsAI.Admin.Models
+@using CoachHoopsAI.Admin.Services
+@inject IAnalysisApiClient Api
+
+<PageTitle>Analysis @Id</PageTitle>
+
+<p><a href="/admin/analyses">&larr; Back to history</a></p>
+
+<h1>Analysis details</h1>
+
+@if (_loading)
+{
+    <div class="alert alert-info" role="status">Loading analysis…</div>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger" role="alert">
+        <strong>Could not load analysis.</strong>
+        <div>@_error</div>
+        <button class="btn btn-sm btn-outline-danger mt-2" @onclick="LoadAsync">Retry</button>
+    </div>
+}
+else if (_record is null)
+{
+    <div class="alert alert-warning">Analysis <code>@Id</code> was not found.</div>
+}
+else
+{
+    <section class="mb-4">
+        <h2 class="h4">Metadata</h2>
+        <dl class="row">
+            <dt class="col-sm-3">Id</dt>             <dd class="col-sm-9"><code>@_record.Id</code></dd>
+            <dt class="col-sm-3">Created (UTC)</dt>  <dd class="col-sm-9">@_record.CreatedUtc.ToString("yyyy-MM-dd HH:mm:ss")</dd>
+            <dt class="col-sm-3">Game date</dt>      <dd class="col-sm-9">@(_record.GameDate?.ToString("yyyy-MM-dd") ?? "—")</dd>
+            <dt class="col-sm-3">Level</dt>          <dd class="col-sm-9">@_record.Level</dd>
+        </dl>
+    </section>
+
+    <section class="mb-4">
+        <h2 class="h4">Team / Opponent</h2>
+        <dl class="row">
+            <dt class="col-sm-3">Team</dt>     <dd class="col-sm-9">@(_record.TeamName ?? "—")</dd>
+            <dt class="col-sm-3">Opponent</dt> <dd class="col-sm-9">@(_record.OpponentName ?? "—")</dd>
+        </dl>
+    </section>
+
+    <section class="mb-4">
+        <h2 class="h4">Problem tags</h2>
+        @if (_problemTags is { Length: > 0 })
+        {
+            <div>
+                @foreach (var tag in _problemTags)
+                {
+                    <span class="badge text-bg-warning me-1 mb-1">@tag</span>
+                }
+            </div>
+        }
+        else
+        {
+            <p class="text-muted">No problem tags.</p>
+        }
+    </section>
+
+    <section class="mb-4">
+        <h2 class="h4">Diagnostics</h2>
+        @if (_diagnostics is { Count: > 0 })
+        {
+            <dl class="row">
+                @foreach (var kvp in _diagnostics)
+                {
+                    <dt class="col-sm-4">@kvp.Key</dt>
+                    <dd class="col-sm-8">@kvp.Value</dd>
+                }
+            </dl>
+        }
+        else
+        {
+            <p class="text-muted">No diagnostics available.</p>
+        }
+    </section>
+
+    <section class="mb-4">
+        <h2 class="h4">Suggestions</h2>
+        @if (_suggestions is { Count: > 0 })
+        {
+            <ul class="list-group">
+                @foreach (var s in _suggestions)
+                {
+                    <li class="list-group-item">
+                        <span class="badge text-bg-secondary me-2">@s.Category</span>
+                        <strong>@s.Text</strong>
+                        <div class="text-muted small mt-1">@s.Reason</div>
+                    </li>
+                }
+            </ul>
+        }
+        else
+        {
+            <p class="text-muted">No suggestions returned.</p>
+        }
+    </section>
+
+    <section class="mb-4">
+        <h2 class="h4">Versioning</h2>
+        <dl class="row">
+            <dt class="col-sm-3">Ruleset version</dt>     <dd class="col-sm-9">@_record.RulesetVersion</dd>
+            <dt class="col-sm-3">Prompt version</dt>      <dd class="col-sm-9">@_record.PromptVersion</dd>
+            <dt class="col-sm-3">AI model</dt>            <dd class="col-sm-9">@(_record.AiModel ?? "—")</dd>
+            <dt class="col-sm-3">Requested profile</dt>   <dd class="col-sm-9">@(_record.RequestedRulesProfile ?? "—")</dd>
+            <dt class="col-sm-3">Applied profile</dt>     <dd class="col-sm-9">@_record.AppliedRulesProfile</dd>
+        </dl>
+    </section>
+
+    <section class="mb-4">
+        <h2 class="h4">Raw JSON snapshots</h2>
+
+        <details class="mb-2">
+            <summary>Input</summary>
+            <pre class="bg-light p-2 small"><code>@PrettyJson(_record.InputJson)</code></pre>
+        </details>
+        <details class="mb-2">
+            <summary>Problem tags</summary>
+            <pre class="bg-light p-2 small"><code>@PrettyJson(_record.ProblemTagsJson)</code></pre>
+        </details>
+        <details class="mb-2">
+            <summary>Diagnostics</summary>
+            <pre class="bg-light p-2 small"><code>@PrettyJson(_record.DiagnosticsJson)</code></pre>
+        </details>
+        <details class="mb-2">
+            <summary>Suggestions</summary>
+            <pre class="bg-light p-2 small"><code>@PrettyJson(_record.SuggestionsJson)</code></pre>
+        </details>
+    </section>
+}
+
+@code {
+    [Parameter] public Guid Id { get; set; }
+
+    private bool _loading = true;
+    private string? _error;
+    private AnalysisRecordDto? _record;
+
+    private string[]? _problemTags;
+    private IReadOnlyDictionary<string, string>? _diagnostics;
+    private IReadOnlyList<SuggestionDto>? _suggestions;
+
+    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions PrettyOpts = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+
+    protected override Task OnInitializedAsync() => LoadAsync();
+
+    private async Task LoadAsync()
+    {
+        _loading = true;
+        _error = null;
+        _record = null;
+        _problemTags = null;
+        _diagnostics = null;
+        _suggestions = null;
+        StateHasChanged();
+
+        try
+        {
+            _record = await Api.GetByIdAsync(Id);
+            if (_record is not null)
+            {
+                _problemTags = TryDeserialize<string[]>(_record.ProblemTagsJson);
+                _suggestions = TryDeserialize<List<SuggestionDto>>(_record.SuggestionsJson);
+                _diagnostics = ParseDiagnostics(_record.DiagnosticsJson);
+            }
+        }
+        catch (ApiClientException ex)
+        {
+            _error = ex.Message;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Unexpected error: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private static T? TryDeserialize<T>(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return default;
+        try { return JsonSerializer.Deserialize<T>(json, JsonOpts); }
+        catch { return default; }
+    }
+
+    private static IReadOnlyDictionary<string, string>? ParseDiagnostics(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return null;
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            if (doc.RootElement.ValueKind != JsonValueKind.Object) return null;
+
+            var dict = new Dictionary<string, string>();
+            foreach (var prop in doc.RootElement.EnumerateObject())
+            {
+                dict[prop.Name] = prop.Value.ValueKind switch
+                {
+                    JsonValueKind.String => prop.Value.GetString() ?? "",
+                    JsonValueKind.Null   => "—",
+                    _                    => prop.Value.ToString()
+                };
+            }
+            return dict;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static string PrettyJson(string? json)
+    {
+        if (string.IsNullOrWhiteSpace(json)) return "(empty)";
+        try
+        {
+            using var doc = JsonDocument.Parse(json);
+            return JsonSerializer.Serialize(doc.RootElement, PrettyOpts);
+        }
+        catch
+        {
+            return json!;
+        }
+    }
+}
