@@ -11,9 +11,12 @@ namespace CoachHoopsAI.Persistence.Entities
         public string? RequestedRulesProfile { get; set; }
         public string AppliedRulesProfile { get; set; } = "";
 
+
         public DateTime? GameDate { get; set; }
         public string? TeamName { get; set; }
         public string? OpponentName { get; set; }
+        public string? Season { get; set; }
+        public string? Location { get; set; }
 
         public string RulesetVersion { get; set; } = "1.2";
         public string PromptVersion { get; set; } = "v2.0";

@@ -17,5 +17,7 @@ namespace CoachHoopsAI.Application.Models
         public DateTime? GameDate { get; init; }
         public string? TeamName { get; init; }
         public string? OpponentName { get; init; }
+        public string? Season { get; init; }
+        public string? Location { get; init; }
     }
 }

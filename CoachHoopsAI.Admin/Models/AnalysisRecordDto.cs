@@ -17,6 +17,8 @@ public sealed class AnalysisRecordDto
     public DateTime? GameDate { get; init; }
     public string? TeamName { get; init; }
     public string? OpponentName { get; init; }
+    public string? Season { get; init; }
+    public string? Location { get; init; }
 
     public string RulesetVersion { get; init; } = "";
     public string PromptVersion { get; init; } = "";

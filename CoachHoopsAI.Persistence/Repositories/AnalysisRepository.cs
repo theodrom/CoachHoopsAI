@@ -30,6 +30,8 @@ namespace CoachHoopsAI.Persistence.Repositories
                 GameDate = record.GameDate,
                 TeamName = record.TeamName,
                 OpponentName = record.OpponentName,
+                Season = record.Season,
+                Location = record.Location,
 
                 RulesetVersion = record.RulesetVersion,
                 PromptVersion = record.PromptVersion,
@@ -61,6 +63,8 @@ namespace CoachHoopsAI.Persistence.Repositories
                 GameDate = e.GameDate,
                 TeamName = e.TeamName,
                 OpponentName = e.OpponentName,
+                Season = e.Season,
+                Location = e.Location,
                 RulesetVersion = e.RulesetVersion,
                 PromptVersion = e.PromptVersion,
                 AiModel = e.AiModel,
@@ -109,7 +113,9 @@ namespace CoachHoopsAI.Persistence.Repositories
                     AppliedRulesProfile = x.AppliedRulesProfile,
                     GameDate = x.GameDate,
                     TeamName = x.TeamName,
-                    OpponentName = x.OpponentName
+                    OpponentName = x.OpponentName,
+                    Season = x.Season,
+                    Location = x.Location
                 })
                 .ToListAsync();
 

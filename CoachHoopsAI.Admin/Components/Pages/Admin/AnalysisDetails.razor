@@ -13,7 +13,7 @@
 
 @if (_loading)
 {
-    <div class="alert alert-info" role="status">Loading analysis…</div>
+    <div class="alert alert-info" role="status">Loading analysis</div>
 }
 else if (_error is not null)
 {
@@ -34,16 +34,18 @@ else
         <dl class="row">
             <dt class="col-sm-3">Id</dt>             <dd class="col-sm-9"><code>@_record.Id</code></dd>
             <dt class="col-sm-3">Created (UTC)</dt>  <dd class="col-sm-9">@_record.CreatedUtc.ToString("yyyy-MM-dd HH:mm:ss")</dd>
-            <dt class="col-sm-3">Game date</dt>      <dd class="col-sm-9">@(_record.GameDate?.ToString("yyyy-MM-dd") ?? "—")</dd>
-            <dt class="col-sm-3">Level</dt>          <dd class="col-sm-9">@_record.Level</dd>
+            <dt class="col-sm-3">Game date</dt>      <dd class="col-sm-9">@(_record.GameDate?.ToString("yyyy-MM-dd") ?? "no given date")</dd>
+            <dt class="col-sm-3">Level</dt>          <dd class="col-sm-9">@(_record.Level ?? "no given level")</dd>
+            <dt class="col-sm-3">Season</dt>          <dd class="col-sm-9">@(_record.Season ?? "no given season")</dd>
+            <dt class="col-sm-3">Location</dt>          <dd class="col-sm-9">@(_record.Location ?? "no given location")</dd>
         </dl>
     </section>
 
     <section class="mb-4">
         <h2 class="h4">Team / Opponent</h2>
         <dl class="row">
-            <dt class="col-sm-3">Team</dt>     <dd class="col-sm-9">@(_record.TeamName ?? "—")</dd>
-            <dt class="col-sm-3">Opponent</dt> <dd class="col-sm-9">@(_record.OpponentName ?? "—")</dd>
+            <dt class="col-sm-3">Team</dt>     <dd class="col-sm-9">@(_record.TeamName ?? "no given name")</dd>
+            <dt class="col-sm-3">Opponent</dt> <dd class="col-sm-9">@(_record.OpponentName ?? "no given name")</dd>
         </dl>
     </section>
 
@@ -108,8 +110,8 @@ else
         <dl class="row">
             <dt class="col-sm-3">Ruleset version</dt>     <dd class="col-sm-9">@_record.RulesetVersion</dd>
             <dt class="col-sm-3">Prompt version</dt>      <dd class="col-sm-9">@_record.PromptVersion</dd>
-            <dt class="col-sm-3">AI model</dt>            <dd class="col-sm-9">@(_record.AiModel ?? "—")</dd>
-            <dt class="col-sm-3">Requested profile</dt>   <dd class="col-sm-9">@(_record.RequestedRulesProfile ?? "—")</dd>
+            <dt class="col-sm-3">AI model</dt>            <dd class="col-sm-9">@(_record.AiModel ?? "no given name")</dd>
+            <dt class="col-sm-3">Requested profile</dt>   <dd class="col-sm-9">@(_record.RequestedRulesProfile ?? "no given name")</dd>
             <dt class="col-sm-3">Applied profile</dt>     <dd class="col-sm-9">@_record.AppliedRulesProfile</dd>
         </dl>
     </section>
@@ -147,8 +149,9 @@ else
     private IReadOnlyDictionary<string, string>? _diagnostics;
     private IReadOnlyList<SuggestionDto>? _suggestions;
 
-    private static readonly JsonSerializerOptions JsonOpts = new(JsonSerializerDefaults.Web);
-    private static readonly JsonSerializerOptions PrettyOpts = new(JsonSerializerDefaults.Web) { WriteIndented = true };
+    // Use default options for compact, pretty for indented
+    private static readonly JsonSerializerOptions CompactJsonOpts = new(JsonSerializerDefaults.Web);
+    private static readonly JsonSerializerOptions PrettyJsonOpts = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
     protected override Task OnInitializedAsync() => LoadAsync();
 
@@ -167,7 +170,8 @@ else
             _record = await Api.GetByIdAsync(Id);
             if (_record is not null)
             {
-                _problemTags = TryDeserialize<string[]>(_record.ProblemTagsJson);
+                var tagInts = TryDeserialize<int[]>(_record.ProblemTagsJson);
+                _problemTags = tagInts?.Select(Models.ProblemTagDto.MapTag).ToArray();
                 _suggestions = TryDeserialize<List<SuggestionDto>>(_record.SuggestionsJson);
                 _diagnostics = ParseDiagnostics(_record.DiagnosticsJson);
             }
@@ -189,7 +193,7 @@ else
     private static T? TryDeserialize<T>(string? json)
     {
         if (string.IsNullOrWhiteSpace(json)) return default;
-        try { return JsonSerializer.Deserialize<T>(json, JsonOpts); }
+        try { return JsonSerializer.Deserialize<T>(json, CompactJsonOpts); }
         catch { return default; }
     }
 
@@ -207,7 +211,7 @@ else
                 dict[prop.Name] = prop.Value.ValueKind switch
                 {
                     JsonValueKind.String => prop.Value.GetString() ?? "",
-                    JsonValueKind.Null   => "—",
+                    JsonValueKind.Null   => "(null)",
                     _                    => prop.Value.ToString()
                 };
             }
@@ -225,7 +229,7 @@ else
         try
         {
             using var doc = JsonDocument.Parse(json);
-            return JsonSerializer.Serialize(doc.RootElement, PrettyOpts);
+            return JsonSerializer.Serialize(doc.RootElement, PrettyJsonOpts);
         }
         catch
         {
