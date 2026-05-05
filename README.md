@@ -4,13 +4,15 @@ CoachHoopsAI is an AI-assisted basketball coaching analysis platform.
 
 The system analyzes team and opponent game statistics, applies configurable basketball rules, detects problem areas, and generates actionable coaching suggestions tailored to the competition context.
 
-The current version (**V2.0**) includes:
+The current version (**V2.1**) includes:
 - deterministic, explainable rule-based analysis
 - configurable rule thresholds via Rules Profiles
 - real AI-powered coaching suggestions
 - structured, schema-validated AI output
 - diagnostics used as AI grounding
 - strong API validation and regression samples
+- **persistence of every analysis (input, diagnostics, tags, suggestions) to SQL Server**
+- **history retrieval and search endpoints**
 
 
 ---
@@ -62,6 +64,14 @@ AI suggestions are generated using a real LLM via the OpenAI Responses API.
 - AI is isolated behind an interface and can be swapped or disabled
 - A fake AI client remains available for development and testing
 
+### Analysis History (V2.1)
+Every analysis request is persisted as an immutable record.
+
+- Stored fields include: input snapshot, applied rules profile, problem tags, diagnostics, AI suggestions, ruleset and prompt versions
+- Each `POST /api/game-analysis` response now returns an `AnalysisId`
+- History is queryable via `GET /api/analyses/{id}` and `GET /api/analyses` (filter by team, level, tag, date range; paged)
+- Backed by SQL Server via the `CoachHoopsAI.Persistence` project (EF Core, with migrations)
+
 ---
 
 ## Samples
@@ -77,7 +87,6 @@ These samples should be used to verify system behavior after any rule or AI chan
 
 ## Current Limitations (Intentional)
 
-- No persistence
 - No UI
 - No authentication
 
