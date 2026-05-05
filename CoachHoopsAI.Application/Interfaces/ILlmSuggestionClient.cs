@@ -9,6 +9,8 @@ namespace CoachHoopsAI.Application.Interfaces
     {
         Task<IReadOnlyCollection<Suggestion>> GetSuggestionsAsync(
             GameAnalysisInput input,
-            IReadOnlyCollection<ProblemTag> tags);
+            IReadOnlyCollection<ProblemTag> tags,
+            GameDiagnostics diagnostics,
+            string appliedRulesProfile);
     }
 }

@@ -33,9 +33,12 @@ namespace CoachHoopsAI.Application.Services
             var resolved = _profileProvider.Resolve(input.Level, input.RulesProfile);
 
             var tags = _rulesEngine.Evaluate(input.Team, input.Opponent, resolved.Profile);
-            var suggestions = await _llmClient.GetSuggestionsAsync(input, tags);
 
+            // Diagnostics are computed before the AI call so they can be used as
+            // primary grounding signals in the suggestion prompt.
             var diagnostics = GameDiagnosticsCalculator.Calculate(input.Team, input.Opponent, resolved.Name);
+
+            var suggestions = await _llmClient.GetSuggestionsAsync(input, tags, diagnostics, resolved.Name);
 
             return new GameAnalysisResult
             {

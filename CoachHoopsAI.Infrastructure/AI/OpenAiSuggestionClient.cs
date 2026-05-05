@@ -49,13 +49,12 @@ namespace CoachHoopsAI.Infrastructure.AI
 
         public async Task<IReadOnlyCollection<Suggestion>> GetSuggestionsAsync(
             GameAnalysisInput input,
-            IReadOnlyCollection<ProblemTag> problemTags)
+            IReadOnlyCollection<ProblemTag> problemTags,
+            GameDiagnostics diagnostics,
+            string appliedRulesProfile)
         {
-            // TODO: once ILlmSuggestionClient is widened to receive GameDiagnostics
-            // (and the applied rules profile name), forward them here as the last two
-            // arguments. The prompt builders already handle the case where they are null.
             var system = BuildSystemPrompt(input.Level);
-            var user = BuildUserPrompt(input, problemTags, diagnostics: null, appliedRulesProfile: null);
+            var user = BuildUserPrompt(input, problemTags, diagnostics, appliedRulesProfile);
 
             var schema = BuildJsonSchema();
 
