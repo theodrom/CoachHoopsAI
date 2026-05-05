@@ -1,0 +1,42 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Run API",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-api",
+      "program": "${workspaceFolder}/CoachHoopsAI.Api/bin/Debug/net10.0/CoachHoopsAI.Api.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/CoachHoopsAI.Api",
+      "stopAtEntry": false,
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    },
+    {
+      "name": "Run Admin",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "build-admin",
+      "program": "${workspaceFolder}/CoachHoopsAI.Admin/bin/Debug/net10.0/CoachHoopsAI.Admin.dll",
+      "args": [],
+      "cwd": "${workspaceFolder}/CoachHoopsAI.Admin",
+      "stopAtEntry": false,
+      "serverReadyAction": {
+        "action": "openExternally",
+        "pattern": "\\bNow listening on:\\s+(https?://\\S+)"
+      },
+      "env": {
+        "ASPNETCORE_ENVIRONMENT": "Development"
+      }
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Run API + Admin",
+      "configurations": ["Run API", "Run Admin"],
+      "stopAll": true
+    }
+  ]
+}
