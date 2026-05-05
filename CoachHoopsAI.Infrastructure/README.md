@@ -42,7 +42,7 @@ It allows CoachHoopsAI to integrate with external systems without affecting core
 
 ## Notes
 
-This project is expected to evolve significantly once real AI providers and persistence are introduced(v1.3).
+Real AI integration was introduced in V2.0 and persistence (in a dedicated `CoachHoopsAI.Persistence` project) in V2.1. This project remains the home for outbound integrations (AI today, messaging/other external services later).
 
 ---
 
