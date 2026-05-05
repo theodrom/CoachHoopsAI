@@ -4,7 +4,8 @@ CoachHoopsAI is an AI-assisted basketball coaching analysis platform.
 
 The system analyzes team and opponent game statistics, applies configurable basketball rules, detects problem areas, and generates actionable coaching suggestions tailored to the competition context.
 
-The current version (**V2.1**) includes:
+
+The current version (**V3.0**) includes:
 - deterministic, explainable rule-based analysis
 - configurable rule thresholds via Rules Profiles
 - real AI-powered coaching suggestions
@@ -13,20 +14,40 @@ The current version (**V2.1**) includes:
 - strong API validation and regression samples
 - **persistence of every analysis (input, diagnostics, tags, suggestions) to SQL Server**
 - **history retrieval and search endpoints**
+- **Blazor Admin UI for browsing analyses, suggestions, and diagnostics**
 
 
 ---
+
 
 ## Architecture Overview
 
 The solution follows a layered architecture:
 
-- **API** – HTTP boundary, validation, DTOs, mapping
-- **Application** – orchestration, diagnostics, rules profile resolution
-- **Domain** – basketball concepts and deterministic rules
-- **Infrastructure** – AI and external service implementations
+- **API** ï¿½ HTTP boundary, validation, DTOs, mapping
+- **Application** ï¿½ orchestration, diagnostics, rules profile resolution
+- **Domain** ï¿½ basketball concepts and deterministic rules
+- **Infrastructure** ï¿½ AI and external service implementations
+
 
 Each layer has a single responsibility and minimal coupling.
+
+---
+
+## Admin UI (V3.0)
+
+CoachHoopsAI.Admin is a Blazor Server project providing a modern admin interface:
+- Browse/search persisted analyses
+- View coaching suggestions, diagnostics, and applied rules profile
+- Paginated, filterable history
+- Responsive UI (Bootstrap)
+
+### Launching the UI
+- Use the VS Code compound launch config (**Run API + Admin**) to start both API and Admin together
+- Admin UI opens automatically at `https://localhost:7071`
+- API runs at `https://localhost:7294` (no root page)
+
+See [CoachHoopsAI.Admin/README.md](CoachHoopsAI.Admin/README.md) for details.
 
 ---
 
@@ -54,7 +75,7 @@ Rules are no longer hardcoded.
 - Requests can override the profile
 - Profiles are currently configured via `appsettings.json`
 
-This enables “levels inside levels” (e.g. development vs advanced teams).
+This enables ï¿½levels inside levelsï¿½ (e.g. development vs advanced teams).
 
 ### AI Integration (V2.0)
 AI suggestions are generated using a real LLM via the OpenAI Responses API.
@@ -85,9 +106,8 @@ These samples should be used to verify system behavior after any rule or AI chan
 
 ---
 
-## Current Limitations (Intentional)
+## Current Limitations
 
-- No UI
 - No authentication
 
-These will be introduced in later versions once the core analysis stabilizes.
+Authentication and user roles will be introduced in a future version.

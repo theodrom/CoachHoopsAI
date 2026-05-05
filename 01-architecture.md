@@ -1,14 +1,21 @@
 # Architecture
 
+
 CoachHoopsAI follows a strict layered architecture.
 
 ## Layers
+
 
 ### API
 - HTTP boundary
 - Validation (FluentValidation)
 - DTOs and mapping
 - Error handling
+
+### Admin UI (Blazor)
+- Presentation layer for browsing analyses, suggestions, and diagnostics
+- Calls API via HTTP client
+- Launched with API using VS Code compound config
 
 ### Application
 - Use cases
