@@ -4,7 +4,7 @@ CoachHoopsAI is an AI-assisted basketball coaching analysis platform.
 
 The system analyzes team and opponent game statistics, applies configurable basketball rules, detects problem areas, and generates actionable coaching suggestions tailored to the competition context.
 
-The current version (**V3.0.1**) includes:
+The current version (**V3.1.0**) includes:
 
 - deterministic, explainable rule-based analysis
 - configurable rule thresholds via Rules Profiles
@@ -31,7 +31,7 @@ Each layer has a single responsibility and minimal coupling.
 
 ---
 
-## Admin UI (V3.0.1)
+## Admin UI (V3.1.0)
 
 CoachHoopsAI.Admin is a Blazor Server project providing a modern admin interface:
 
@@ -39,6 +39,7 @@ CoachHoopsAI.Admin is a Blazor Server project providing a modern admin interface
 - View coaching suggestions, diagnostics, and applied rules profile
 - Paginated, filterable history
 - Responsive UI (Bootstrap)
+- **New in 3.1.0:** Add Analysis form, improved navigation, and custom sidebar icon
 
 ### Launching the UI
 
