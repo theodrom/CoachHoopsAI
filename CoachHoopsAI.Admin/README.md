@@ -1,14 +1,21 @@
-# CoachHoopsAI.Admin (v3.0.1)
+# CoachHoopsAI.Admin (v3.1.0)
 
 ## Purpose
 
+
 This project provides the Blazor Server admin UI for CoachHoopsAI.
+
+## What's New in 3.1.0
+
+- **New Analysis Form**: Enter basketball game data manually and submit to the API
+- **Menu Update**: "Add Analysis" link with custom icon in the sidebar
+- **Improved Navigation**: Only one menu item is active at a time
 
 It allows users to:
 
 - Browse and search persisted analyses
 - View coaching suggestions and diagnostics
-- Trigger new analyses (future)
+- Trigger new analyses from the UI
 
 ---
 
@@ -46,7 +53,6 @@ It allows users to:
 
 ## Future Improvements
 
-- Trigger new analyses from the UI
 - Edit and manage rules profiles
 - User authentication and roles
 - Enhanced filtering and export
