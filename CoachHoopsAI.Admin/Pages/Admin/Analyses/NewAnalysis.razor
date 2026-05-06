@@ -1,0 +1,183 @@
+@page "/admin/analyses/new"
+@using Microsoft.AspNetCore.Components.Forms
+@using CoachHoopsAI.Admin.Models
+@using CoachHoopsAI.Admin.Services
+
+@inject IAnalysisApiClient AnalysisApiClient
+
+@inject NavigationManager Navigation
+
+
+<EditForm Model="request" OnValidSubmit="HandleValidSubmit">
+    <DataAnnotationsValidator />
+    <ValidationSummary />
+
+    <h3>Game Metadata</h3>
+    <div class="mb-3">
+        <label>Game Date</label>
+        <InputDate @bind-value="request.GameDate" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Team Name</label>
+        <InputText @bind-value="request.TeamName" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Opponent Name</label>
+        <InputText @bind-value="request.OpponentName" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Competition</label>
+        <InputText @bind-value="request.Competition" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Season</label>
+        <InputText @bind-value="request.Season" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Location</label>
+        <InputText @bind-value="request.Location" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Level</label>
+        <InputSelect @bind-value="request.Level" class="form-select">
+            <option value="">Select Level</option>
+            <option>EasyBasket</option>
+            <option>Youth</option>
+            <option>Amateur</option>
+            <option>Pro</option>
+        </InputSelect>
+    </div>
+    <div class="mb-3">
+        <label>Rules Profile (optional)</label>
+        <InputText @bind-value="request.RulesProfile" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Notes</label>
+        <InputTextArea @bind-value="request.Notes" class="form-control" rows="3" />
+    </div>
+
+    <h3>Team Stats</h3>
+    <div class="mb-3">
+        <label>Points</label>
+        <InputNumber @bind-value="request.Team.Points" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>3pt Attempts</label>
+        <InputNumber @bind-value="request.Team.ThreePointAttempts" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Offensive Rebounds</label>
+        <InputNumber @bind-value="request.Team.OffensiveRebounds" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Defensive Rebounds</label>
+        <InputNumber @bind-value="request.Team.DefensiveRebounds" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Turnovers</label>
+        <InputNumber @bind-value="request.Team.Turnovers" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Fouls</label>
+        <InputNumber @bind-value="request.Team.Fouls" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Field Goal % (0-1)</label>
+        <InputNumber @bind-value="request.Team.FieldGoalPercentage" class="form-control" step="0.01" />
+    </div>
+    <div class="mb-3">
+        <label>3pt % (0-1)</label>
+        <InputNumber @bind-value="request.Team.ThreePointPercentage" class="form-control" step="0.01" />
+    </div>
+
+    <h3>Opponent Stats</h3>
+    <div class="mb-3">
+        <label>Points</label>
+        <InputNumber @bind-value="request.Opponent.Points" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>3pt Attempts</label>
+        <InputNumber @bind-value="request.Opponent.ThreePointAttempts" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Offensive Rebounds</label>
+        <InputNumber @bind-value="request.Opponent.OffensiveRebounds" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Defensive Rebounds</label>
+        <InputNumber @bind-value="request.Opponent.DefensiveRebounds" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Turnovers</label>
+        <InputNumber @bind-value="request.Opponent.Turnovers" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Fouls</label>
+        <InputNumber @bind-value="request.Opponent.Fouls" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Field Goal % (0-1)</label>
+        <InputNumber @bind-value="request.Opponent.FieldGoalPercentage" class="form-control" step="0.01" />
+    </div>
+    <div class="mb-3">
+        <label>3pt % (0-1)</label>
+        <InputNumber @bind-value="request.Opponent.ThreePointPercentage" class="form-control" step="0.01" />
+    </div>
+
+    <button class="btn btn-primary" type="submit" disabled="@isLoading">
+        @(isLoading ? "Submitting..." : "Submit Analysis")
+    </button>
+</EditForm>
+
+@if (errorMessage != null)
+{
+    <div class="alert alert-danger mt-3">@errorMessage</div>
+}
+@if (apiResponse != null && apiResponse.AnalysisId == Guid.Empty)
+{
+    <div class="alert alert-info mt-3">
+        <h5>Suggestions</h5>
+        <ul>
+            @foreach (var suggestion in apiResponse.Suggestions.Suggestions)
+            {
+                <li>@suggestion</li>
+            }
+        </ul>
+    </div>
+}
+
+@code {
+    private AnalyzeGameRequestDto request = new();
+    private AnalyzeGameResponseDto? apiResponse;
+    private string? errorMessage;
+    private bool isLoading = false;
+
+    // No implicit arrays or tuples needed. Explicit stat fields are now used in markup.
+
+    private async Task HandleValidSubmit()
+    {
+        isLoading = true;
+        errorMessage = null;
+        apiResponse = null;
+        try
+        {
+            var response = await AnalysisApiClient.AnalyzeGameAsync(request);
+            if (response.AnalysisId != Guid.Empty)
+            {
+                Navigation.NavigateTo($"/admin/analyses/{response.AnalysisId}");
+            }
+            else
+            {
+                apiResponse = response;
+            }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = ex.Message;
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+}

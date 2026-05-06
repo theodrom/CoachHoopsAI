@@ -78,6 +78,29 @@ public sealed class AnalysisApiClient : IAnalysisApiClient
 
         return sb.ToString();
     }
+
+    public async Task<AnalyzeGameResponseDto> AnalyzeGameAsync(
+        AnalyzeGameRequestDto request,
+        CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            var resp = await _http.PostAsJsonAsync("api/game-analysis", request, cancellationToken);
+            if (!resp.IsSuccessStatusCode)
+            {
+                var error = await resp.Content.ReadAsStringAsync(cancellationToken);
+                throw new ApiClientException($"API error: {resp.StatusCode} - {error}");
+            }
+            var result = await resp.Content.ReadFromJsonAsync<AnalyzeGameResponseDto>(cancellationToken: cancellationToken);
+            if (result == null)
+                throw new ApiClientException("API returned no data.");
+            return result;
+        }
+        catch (HttpRequestException ex)
+        {
+            throw new ApiClientException($"Failed to submit analysis: {ex.Message}", ex);
+        }
+    }
 }
 
 public sealed class ApiClientException : Exception

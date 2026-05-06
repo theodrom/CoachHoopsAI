@@ -11,4 +11,8 @@ public interface IAnalysisApiClient
     Task<AnalysisRecordDto?> GetByIdAsync(
         Guid id,
         CancellationToken cancellationToken = default);
+
+    Task<AnalyzeGameResponseDto> AnalyzeGameAsync(
+        AnalyzeGameRequestDto request,
+        CancellationToken cancellationToken = default);
 }
