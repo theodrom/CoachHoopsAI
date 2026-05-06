@@ -1,4 +1,4 @@
-﻿# CoachHoopsAI.Api
+﻿# CoachHoopsAI.Api (v3.0.1)
 
 ## Purpose
 
@@ -23,23 +23,26 @@ It handles request validation, mapping, and response formatting, acting as a cle
 ### POST /api/game-analysis
 
 Accepts:
+
 - Team and opponent statistics
 - Competition level
-- Optional game metadata (date, team names, competition, location)
+- Optional game metadata (date, team names, competition, **season, location**)
 - Optional rules profile override
 
 Returns:
+
 - `AnalysisId` (Guid) of the persisted analysis record (V2.1)
 - Detected ProblemTags
 - Coaching suggestions grouped by category
 - Diagnostics explaining stat differences
 - Applied rules profile name
+- **Season and Location as top-level fields**
 
 Every successful request is persisted via `IAnalysisHistoryService` before the response is returned.
 
 ### GET /api/analyses/{id}  *(V2.1)*
 
-Returns the full stored `AnalysisRecord` for the given id (input snapshot, problem tags, diagnostics, suggestions, ruleset/prompt versions, applied profile, timestamps).
+Returns the full stored `AnalysisRecord` for the given id (input snapshot, problem tags, diagnostics, suggestions, ruleset/prompt versions, applied profile, timestamps, **season, location**).
 
 Returns `404` if the id does not exist.
 
@@ -49,15 +52,18 @@ Paged search over historical analyses. Query parameters:
 
 | Name | Type | Notes |
 |------|------|-------|
+
 | `teamName` | string | optional filter |
 | `level` | string | optional filter (`EasyBasket`, `Youth`, `Amateur`, `Pro`) |
 | `tag` | string | optional ProblemTag filter |
 | `fromUtc` | DateTime | optional inclusive lower bound on `CreatedUtc` |
 | `toUtc` | DateTime | optional inclusive upper bound on `CreatedUtc` |
+| `season` | string | optional filter (new in V3.1) |
+| `location` | string | optional filter (new in V3.1) |
 | `page` | int | defaults to `1` |
 | `pageSize` | int | defaults to `20` |
 
-Returns a `PagedResult<AnalysisRecordListItem>`.
+Returns a `PagedResult<AnalysisRecordListItem>` with **season** and **location** as top-level fields.
 
 ---
 

@@ -1,10 +1,11 @@
-# CoachHoopsAI.Admin
+# CoachHoopsAI.Admin (v3.0.1)
 
 ## Purpose
 
 This project provides the Blazor Server admin UI for CoachHoopsAI.
 
 It allows users to:
+
 - Browse and search persisted analyses
 - View coaching suggestions and diagnostics
 - Trigger new analyses (future)
@@ -23,7 +24,7 @@ It allows users to:
 ## Key Features
 
 - **Analysis List**: Paginated, filterable list of all analyses
-- **Analysis Details**: View problem tags, suggestions, diagnostics, and applied rules profile for a single analysis
+- **Analysis Details**: View problem tags, suggestions, diagnostics, applied rules profile, **season, and location** for a single analysis
 - **API Integration**: Uses `IAnalysisApiClient` to call the backend
 - **Blazor Server**: Real-time UI updates, no client-side build required
 

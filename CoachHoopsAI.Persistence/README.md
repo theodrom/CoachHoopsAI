@@ -1,4 +1,4 @@
-# CoachHoopsAI.Persistence
+# CoachHoopsAI.Persistence (v3.0.1)
 
 ## Purpose
 
@@ -22,16 +22,21 @@ Introduced in **V2.1**.
 ## Key Components
 
 ### DbContext
-- `CoachHoopsAIDbContext` — exposes `Analyses` (`DbSet<AnalysisRecordEntity>`), with indexes on `CreatedUtc`, `TeamName`, `GameDate`
+
+- `CoachHoopsAIDbContext` ï¿½ exposes `Analyses` (`DbSet<AnalysisRecordEntity>`), with indexes on `CreatedUtc`, `TeamName`, `GameDate`
 
 ### Entities
-- `AnalysisRecordEntity` — immutable row capturing a single analysis: input JSON snapshot, problem tags JSON, diagnostics JSON, suggestions JSON, applied/requested rules profiles, ruleset and prompt versions, AI model
+
+- `AnalysisRecordEntity` ï¿½ immutable row capturing a single analysis: input JSON snapshot, problem tags JSON, diagnostics JSON, suggestions JSON, applied/requested rules profiles, ruleset and prompt versions, AI model, **season, location** (top-level columns as of V3.1)
 
 ### Repositories
-- `AnalysisRepository` — `SaveAsync`, `GetByIdAsync`, `SearchAsync` with paging and optional filters (team, level, tag, date range)
+
+- `AnalysisRepository` ï¿½ `SaveAsync`, `GetByIdAsync`, `SearchAsync` with paging and optional filters (team, level, tag, date range, **season, location**)
 
 ### Migrations
-- `20260220131412_InitialSqlServer` — creates the `Analyses` table and indexes
+
+- `20260220131412_InitialSqlServer` ï¿½ creates the `Analyses` table and indexes
+- `20260505154155_AddSeasonAndLocationToAnalysisRecord` ï¿½ adds `Season` and `Location` columns to `Analyses`
 
 ---
 

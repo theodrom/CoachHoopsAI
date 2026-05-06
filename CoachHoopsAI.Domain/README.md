@@ -1,4 +1,4 @@
-﻿# CoachHoopsAI.Domain
+﻿# CoachHoopsAI.Domain (v3.0.1)
 
 ## Purpose
 
@@ -19,16 +19,17 @@ It defines the concepts, language, and deterministic rules used to analyze games
 
 ## Key Components
 
-### Entities
 - TeamStats
 - Suggestion
 
 ### Enums
+
 - Level
 - ProblemTag
 - SuggestionCategory
 
 ### Rules
+
 - IStatRulesEngine
 - StatRulesEngine
 - RulesProfile
@@ -38,6 +39,7 @@ It defines the concepts, language, and deterministic rules used to analyze games
 ## Design Philosophy
 
 The Domain layer:
+
 - contains no validation
 - contains no configuration binding
 - contains no infrastructure dependencies

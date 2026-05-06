@@ -1,4 +1,4 @@
-﻿# CoachHoopsAI.Infrastructure
+﻿# CoachHoopsAI.Infrastructure (v3.0.1)
 
 ## Purpose
 
@@ -52,4 +52,3 @@ Real AI integration was introduced in V2.0 and persistence (in a dedicated `Coac
 - Deterministic rules remain the source of truth
 - Diagnostics are passed explicitly to avoid hallucination
 - All AI output must conform to a strict schema
-

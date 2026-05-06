@@ -1,4 +1,4 @@
-﻿# CoachHoopsAI.Application
+﻿# CoachHoopsAI.Application (v3.0.1)
 
 ## Purpose
 
@@ -23,15 +23,18 @@ It coordinates rule evaluation, diagnostics calculation, rules profile resolutio
 ## Key Components
 
 ### Services
+
 - GameAnalysisService
 - AnalysisHistoryService *(V2.1)* — runs analysis then persists an immutable `AnalysisRecord`, stamping `RulesetVersion` and `PromptVersion`
 
 ### Rules
+
 - IRulesProfileProvider
 - RulesProfileProvider
 - RulesProfilesOptions
 
 ### Models
+
 - GameAnalysisInput
 - GameAnalysisResult
 - GameDiagnostics
@@ -42,6 +45,7 @@ It coordinates rule evaluation, diagnostics calculation, rules profile resolutio
 - PagedResult&lt;T&gt; *(V2.1)*
 
 ### Interfaces
+
 - IGameAnalysisService
 - ILlmSuggestionClient
 - IAnalysisHistoryService *(V2.1)*
