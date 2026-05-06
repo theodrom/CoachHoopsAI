@@ -2,6 +2,7 @@
 
 ## Purpose
 
+
 This project provides the Blazor Server admin UI for CoachHoopsAI.
 
 ## What's New in 3.1.0
