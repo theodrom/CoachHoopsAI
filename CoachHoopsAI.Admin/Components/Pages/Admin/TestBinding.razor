@@ -1,0 +1,23 @@
+@page "/admin/test-binding"
+@rendermode InteractiveServer
+
+<h3>Test Binding</h3>
+
+<EditForm Model="_testModel" FormName="TestForm">
+    <InputText @bind-Value="_testModel.Name" class="form-control" placeholder="Enter your name"/>
+    <button class="btn btn-primary" type="submit">Submit</button>
+</EditForm>
+
+<details class="mt-4">
+    <summary>Debug: Current testModel object</summary>
+    <pre>@System.Text.Json.JsonSerializer.Serialize(_testModel, new System.Text.Json.JsonSerializerOptions { WriteIndented = true })</pre>
+</details>
+
+@code {
+    private TestModel _testModel = new();
+
+    public class TestModel
+    {
+        public string? Name { get; set; }
+    }
+}

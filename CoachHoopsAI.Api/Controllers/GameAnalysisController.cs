@@ -30,7 +30,7 @@ namespace CoachHoopsAI.Api.Controllers
             var input = request.ToGameAnalysisInput();
             var (result, analysisId) = await analysisHistoryService.AnalyzeAndStoreAsync(input);
 
-            var dto = result.ToResponseDto();
+            var dto = result?.ToResponseDto();
             if (dto != null) dto.AnalysisId = analysisId;
 
             return Ok(dto);
