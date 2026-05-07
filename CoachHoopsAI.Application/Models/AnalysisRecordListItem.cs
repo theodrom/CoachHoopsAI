@@ -19,5 +19,7 @@ namespace CoachHoopsAI.Application.Models
         public string? OpponentName { get; init; }
         public string? Season { get; init; }
         public string? Location { get; init; }
+        public string? ProblemTagsJson { get; init; }
+        public string? AiModel { get; init; }
     }
 }

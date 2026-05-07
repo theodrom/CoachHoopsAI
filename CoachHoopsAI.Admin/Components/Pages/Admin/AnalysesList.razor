@@ -1,5 +1,6 @@
 @page "/admin/analyses"
 @rendermode InteractiveServer
+@using CoachHoopsAI.Admin.Helpers
 @using CoachHoopsAI.Admin.Models
 @using CoachHoopsAI.Admin.Services
 @inject IAnalysisApiClient Api
@@ -10,7 +11,7 @@
 
 @if (_loading)
 {
-    <div class="alert alert-info" role="status">Loading analyses…</div>
+    <div class="alert alert-info" role="status">Loading analysesï¿½</div>
 }
 else if (_error is not null)
 {
@@ -42,22 +43,27 @@ else
                     <th>Applied profile</th>
                     <th>ProblemTags</th>
                     <th>AiModel</th>
+                    <th>TagsJson (debug)</th>
                     <th></th>
                 </tr>
             </thead>
             <tbody>
-                @foreach (var row in _page.Items)
+                @{
+                    var itemsList = _page.Items.ToList();
+                }
+                @for (int i = 0; i < itemsList.Count; i++)
                 {
+                    var row = itemsList[i];
+                    var tags = _problemTagsPerRow != null && i < _problemTagsPerRow.Count ? _problemTagsPerRow[i] : null;
                     <tr>
                         <td>@row.CreatedUtc.ToString("yyyy-MM-dd HH:mm")</td>
-                        <td>@(row.GameDate?.ToString("yyyy-MM-dd") ?? "—")</td>
-                        <td>@(row.TeamName ?? "—")</td>
-                        <td>@(row.OpponentName ?? "—")</td>
+                        <td>@(row.GameDate?.ToString("yyyy-MM-dd") ?? "-")</td>
+                        <td>@(row.TeamName ?? "-")</td>
+                        <td>@(row.OpponentName ?? "-")</td>
                         <td>@row.Level</td>
                         <td>@row.AppliedRulesProfile</td>
-                        @* ProblemTags and AiModel are not on the list DTO yet; available on the detail page. *@
-                        <td class="text-muted">—</td>
-                        <td class="text-muted">—</td>
+                        <td>@(tags != null && tags.Length > 0 ? string.Join(", ", tags) : "-")</td>
+                        <td>@(row.AiModel ?? "-")</td>
                         <td>
                             <a class="btn btn-sm btn-outline-primary"
                                href="@($"/admin/analyses/{row.Id}")">Details</a>
@@ -81,6 +87,7 @@ else
 @code {
     private bool _loading = true;
     private string? _error;
+    private List<string[]>? _problemTagsPerRow;
     private PagedResultDto<AnalysisRecordListItemDto>? _page;
     private AnalysisSearchQueryDto _query = new() { Page = 1, PageSize = 20 };
 
@@ -113,6 +120,15 @@ else
         {
             _loading = false;
         }
+
+        // Deserialize and map tags per row
+        _problemTagsPerRow = _page?.Items
+            .Select(i =>
+                (JsonHelpers.TryDeserialize<int[]>(i.ProblemTagsJson ?? null) ?? Array.Empty<int>())
+                .Select(ProblemTagDto.MapTag)
+                .ToArray()
+            )
+            .ToList();
     }
 
     private Task PrevPage()

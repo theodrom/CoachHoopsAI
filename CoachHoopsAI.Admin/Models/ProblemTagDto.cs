@@ -8,18 +8,18 @@ public sealed class ProblemTagDto
     public static string MapTag(int value) => value switch
     {
         0 => "None",
-        1 => "TurnoverProblem",
-        2 => "OffensiveEfficiencyProblem",
-        3 => "OurShootingInefficiency",
-        4 => "TooManyThreePointAttempts",
-        5 => "LackOfPaintPressure",
-        6 => "DefensiveReboundProblem",
-        7 => "OpponentHotFromThree",
-        8 => "PerimeterDefenseProblem",
-        9 => "InteriorDefenseProblem",
-        10 => "TransitionDefenseProblem",
-        11 => "FoulsProblem",
-        12 => "PaceControlProblem",
+        1 => "Turnover Problem",
+        2 => "Offensive Efficiency Problem",
+        3 => "Our Shooting Inefficiency",
+        4 => "Too Many Three Point Attempts",
+        5 => "Lack Of Paint Pressure",
+        6 => "Defensive Rebound Problem",
+        7 => "Opponent Hot From Three",
+        8 => "Perimeter Defense Problem",
+        9 => "Interior Defense Problem",
+        10 => "Transition Defense Problem",
+        11 => "Fouls Problem",
+        12 => "Pace Control Problem",
         _ => $"Unknown({value})"
     };
 }

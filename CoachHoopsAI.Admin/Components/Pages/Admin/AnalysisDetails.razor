@@ -3,6 +3,7 @@
 @using System.Text.Json
 @using CoachHoopsAI.Admin.Models
 @using CoachHoopsAI.Admin.Services
+@using CoachHoopsAI.Admin.Helpers
 @inject IAnalysisApiClient Api
 
 <PageTitle>Analysis @Id</PageTitle>
@@ -150,7 +151,6 @@ else
     private IReadOnlyList<SuggestionDto>? _suggestions;
 
     // Use default options for compact, pretty for indented
-    private static readonly JsonSerializerOptions CompactJsonOpts = new(JsonSerializerDefaults.Web);
     private static readonly JsonSerializerOptions PrettyJsonOpts = new(JsonSerializerDefaults.Web) { WriteIndented = true };
 
     protected override Task OnInitializedAsync() => LoadAsync();
@@ -170,9 +170,9 @@ else
             _record = await Api.GetByIdAsync(Id);
             if (_record is not null)
             {
-                var tagInts = TryDeserialize<int[]>(_record.ProblemTagsJson);
-                _problemTags = tagInts?.Select(Models.ProblemTagDto.MapTag).ToArray();
-                _suggestions = TryDeserialize<List<SuggestionDto>>(_record.SuggestionsJson);
+                var tagInts = JsonHelpers.TryDeserialize<int[]>(_record.ProblemTagsJson);
+                _problemTags = tagInts?.Select(ProblemTagDto.MapTag).ToArray();
+                _suggestions = JsonHelpers.TryDeserialize<List<SuggestionDto>>(_record.SuggestionsJson);
                 _diagnostics = ParseDiagnostics(_record.DiagnosticsJson);
             }
         }
@@ -190,12 +190,6 @@ else
         }
     }
 
-    private static T? TryDeserialize<T>(string? json)
-    {
-        if (string.IsNullOrWhiteSpace(json)) return default;
-        try { return JsonSerializer.Deserialize<T>(json, CompactJsonOpts); }
-        catch { return default; }
-    }
 
     private static IReadOnlyDictionary<string, string>? ParseDiagnostics(string? json)
     {
