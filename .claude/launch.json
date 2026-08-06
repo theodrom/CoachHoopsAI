@@ -1,0 +1,19 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "api",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "CoachHoopsAI.Api", "--launch-profile", "https", "--no-build"],
+      "port": 7294,
+      "url": "https://localhost:7294"
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "dotnet",
+      "runtimeArgs": ["run", "--project", "CoachHoopsAI.Admin", "--launch-profile", "https", "--no-build"],
+      "port": 7071,
+      "url": "https://localhost:7071"
+    }
+  ]
+}
