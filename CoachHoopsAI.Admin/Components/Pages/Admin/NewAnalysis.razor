@@ -144,7 +144,7 @@
     <div class="alert alert-info mt-3">
         <h5>Suggestions</h5>
         <ul>
-            @foreach (var suggestion in apiResponse.Suggestions.Suggestions)
+            @foreach (var suggestion in AllSuggestionTexts)
             {
                 <li>@suggestion</li>
             }
@@ -158,7 +158,11 @@
     private string? errorMessage;
     private bool isLoading = false;
 
-    // No implicit arrays or tuples needed. Explicit stat fields are now used in markup.
+    private IEnumerable<string> AllSuggestionTexts =>
+        (apiResponse?.Suggestions.Offense ?? Array.Empty<SuggestionItemDto>())
+            .Concat(apiResponse?.Suggestions.Defense ?? Array.Empty<SuggestionItemDto>())
+            .Concat(apiResponse?.Suggestions.Other ?? Array.Empty<SuggestionItemDto>())
+            .Select(s => s.Suggestion ?? string.Empty);
 
     private async Task HandleValidSubmit()
     {
