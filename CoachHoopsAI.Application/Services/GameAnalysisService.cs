@@ -45,7 +45,8 @@ namespace CoachHoopsAI.Application.Services
                 Level = input.Level,
                 ProblemTags = tags,
                 Suggestions = suggestions,
-                Diagnostics = diagnostics
+                Diagnostics = diagnostics,
+                AiModel = _llmClient.ModelName
             };
         }
     }

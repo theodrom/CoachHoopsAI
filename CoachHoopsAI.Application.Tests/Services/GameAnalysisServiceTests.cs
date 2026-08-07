@@ -116,6 +116,19 @@ public class GameAnalysisServiceTests
     }
 
     [Fact]
+    public async Task AnalyzeAsync_ResultAiModel_ComesFromLlmClientModelName()
+    {
+        var rulesEngine = new FakeStatRulesEngine();
+        var llmClient = new FakeLlmSuggestionClient { ModelName = "gpt-4.1-mini" };
+        var profileProvider = new FakeRulesProfileProvider();
+        var sut = new GameAnalysisService(rulesEngine, llmClient, profileProvider);
+
+        var result = await sut.AnalyzeAsync(Input());
+
+        Assert.Equal("gpt-4.1-mini", result.AiModel);
+    }
+
+    [Fact]
     public async Task AnalyzeAsync_NoTagsDetected_StillCallsLlmClientWithEmptyTagCollection()
     {
         var rulesEngine = new FakeStatRulesEngine { TagsToReturn = Array.Empty<ProblemTag>() };

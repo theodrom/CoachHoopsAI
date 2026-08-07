@@ -29,15 +29,9 @@ Introduced in **V2.1**.
 
 - `AnalysisRecordEntity` � immutable row capturing a single analysis: input JSON snapshot, problem tags JSON, diagnostics JSON, suggestions JSON, applied/requested rules profiles, ruleset and prompt versions, AI model, **season, location** columns (added V3.1)
 
-  **Known gap:** the `Season`, `Location`, and `AiModel` columns exist and are
-  read back correctly, but the current write path (`AnalysisHistoryService`,
-  in `CoachHoopsAI.Application`) does not populate `Season`/`Location` from the
-  request, and always writes `AiModel` as an empty string. This project stores
-  whatever it is given; the gap is in what is currently handed to it.
-
 ### Repositories
 
-- `AnalysisRepository` � `SaveAsync`, `GetByIdAsync`, `SearchAsync` with paging and optional filters (team, level, tag, date range). `season`/`location` are **not** search filters.
+- `AnalysisRepository` � `SaveAsync`, `GetByIdAsync`, `SearchAsync` with paging and optional filters (team, level, tag, date range). `season`/`location` are **not** search filters, but are returned (along with `aiModel`) on every `GetByIdAsync`/`SearchAsync` result.
 
 ### Migrations
 

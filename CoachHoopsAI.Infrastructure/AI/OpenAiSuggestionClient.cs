@@ -47,6 +47,11 @@ namespace CoachHoopsAI.Infrastructure.AI
                 throw new InvalidOperationException("OpenAI:BaseUrl is missing.");
         }
 
+        // Guaranteed non-null/non-whitespace by the constructor guard above - this
+        // is the single configured source of the model identifier; nothing else
+        // duplicates it.
+        public string ModelName => _options.Model!;
+
         public async Task<IReadOnlyCollection<Suggestion>> GetSuggestionsAsync(
             GameAnalysisInput input,
             IReadOnlyCollection<ProblemTag> problemTags,

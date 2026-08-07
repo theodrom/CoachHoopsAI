@@ -71,9 +71,7 @@ Returns the full stored analysis record: `id`, `createdUtc`, `level`,
 
 `problemTagsJson` and `aiModel` exist on this stored-record shape and on the
 list/search endpoint below - they are **not** part of the `POST
-/api/game-analysis` response above. See the known persistence gap noted under
-`GET /api/analyses` - it applies here too, since both endpoints read the same
-stored record.
+/api/game-analysis` response above.
 
 Returns `404` if the id does not exist.
 
@@ -89,13 +87,13 @@ Returns `{ page, pageSize, total, items: [...] }`. Each item: `id`,
 `createdUtc`, `level`, `appliedRulesProfile`, `gameDate`, `teamName`,
 `opponentName`, `season`, `location`, `problemTagsJson`, `aiModel`.
 
-**Known gap:** `AnalysisHistoryService` (the write path) does not currently
-copy `Season`/`Location` from the request into the persisted record, and
-`AiModel` is always stored as an empty string. All three fields exist on the
-schema and are returned here, but currently come back `null`/`""` for every
-analysis regardless of what was submitted or which AI provider ran.
+`season`/`location` are populated from the request's metadata when supplied,
+and `null` when not (they are never defaulted to a value). `aiModel` is
+populated from the identifier the LLM client that produced the suggestions
+actually reports - `"Fake"` when the fake client is active, otherwise the
+configured OpenAI model name.
 
-Example item (reflecting current behavior):
+Example item:
 
 ```json
 {
@@ -106,10 +104,10 @@ Example item (reflecting current behavior):
   "gameDate": "...",
   "teamName": "...",
   "opponentName": "...",
-  "season": null,
-  "location": null,
+  "season": "2025/2026",
+  "location": "Home Arena",
   "problemTagsJson": "[1,3,7]",
-  "aiModel": ""
+  "aiModel": "gpt-4.1-mini"
 }
 ```
 

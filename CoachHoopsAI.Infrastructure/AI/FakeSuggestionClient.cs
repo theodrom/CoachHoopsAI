@@ -6,6 +6,8 @@ namespace CoachHoopsAI.Infrastructure.AI
 {
     public class FakeSuggestionClient : ILlmSuggestionClient
     {
+        public string ModelName => "Fake";
+
         public Task<IReadOnlyCollection<Suggestion>> GetSuggestionsAsync(
             GameAnalysisInput input,
             IReadOnlyCollection<Domain.Enums.ProblemTag> tags,

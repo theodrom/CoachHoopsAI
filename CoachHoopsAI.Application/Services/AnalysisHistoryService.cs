@@ -52,10 +52,12 @@ namespace CoachHoopsAI.Application.Services
                 GameDate = input.Metadata?.GameDate,
                 TeamName = input.Metadata?.TeamName,
                 OpponentName = input.Metadata?.OpponentName,
+                Season = input.Metadata?.Season,
+                Location = input.Metadata?.Location,
 
                 RulesetVersion = RulesetVersion,
                 PromptVersion = PromptVersion,
-                AiModel = "" /* optional: fill from config later */,
+                AiModel = result?.AiModel ?? "",
 
                 InputJson = JsonSerializer.Serialize(inputSnapshot, JsonOpts),
                 ProblemTagsJson = JsonSerializer.Serialize(result?.ProblemTags, JsonOpts),

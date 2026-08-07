@@ -12,7 +12,7 @@ The current version (**V3.1.0**) includes:
 - structured, schema-validated AI output
 - diagnostics used as AI grounding
 - strong API validation and regression samples
-- **persistence of every analysis (input, diagnostics, tags, suggestions) to SQL Server as top-level columns** (note: `season`/`location`/`aiModel` columns exist but are not currently populated on write - see `Docs/02-api-contracts.md`)
+- **persistence of every analysis (input, diagnostics, tags, suggestions, season, location, AI model) to SQL Server as top-level columns**
 - **history retrieval and search endpoints**
 - **Blazor Admin UI for browsing analyses, suggestions, and diagnostics**
 - game format and game timing captured per analysis, alongside raw box-score inputs (made/attempted counts, not percentages)

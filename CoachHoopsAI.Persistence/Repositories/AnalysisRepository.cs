@@ -116,7 +116,8 @@ namespace CoachHoopsAI.Persistence.Repositories
                     OpponentName = x.OpponentName,
                     Season = x.Season,
                     Location = x.Location,
-                    ProblemTagsJson = x.ProblemTagsJson
+                    ProblemTagsJson = x.ProblemTagsJson,
+                    AiModel = x.AiModel
                 })
                 .ToListAsync();
 

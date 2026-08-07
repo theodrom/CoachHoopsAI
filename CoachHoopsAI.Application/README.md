@@ -25,7 +25,7 @@ It coordinates rule evaluation, diagnostics calculation, rules profile resolutio
 ### Services
 
 - GameAnalysisService
-- AnalysisHistoryService *(V2.1)* — runs analysis then persists an immutable `AnalysisRecord`, stamping `RulesetVersion` and `PromptVersion`. Known gap: does not currently copy `Season`/`Location` from the request metadata onto the record, and always stamps `AiModel` as an empty string (see `CoachHoopsAI.Persistence/README.md`)
+- AnalysisHistoryService *(V2.1)* — runs analysis then persists an immutable `AnalysisRecord`, stamping `RulesetVersion`/`PromptVersion`, copying `Season`/`Location` from the request metadata (`null` when not supplied), and setting `AiModel` from the model identifier reported by the `ILlmSuggestionClient` that produced the suggestions
 
 ### Rules
 

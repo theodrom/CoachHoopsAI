@@ -47,8 +47,6 @@ Returns the full stored `AnalysisRecord` for the given id (input snapshot, probl
 
 Returns `404` if the id does not exist.
 
-**Known gap:** `AnalysisHistoryService` does not currently copy `Season`/`Location` from the request into the persisted record (only `GameDate`/`TeamName`/`OpponentName` are copied), and `AiModel` is always stored as an empty string. `Season`, `Location`, and `AiModel` exist on the schema and are readable here, but currently come back null/empty for every analysis regardless of what was submitted.
-
 ### GET /api/analyses  *(V2.1)*
 
 Paged search over historical analyses. Query parameters:
@@ -64,9 +62,9 @@ Paged search over historical analyses. Query parameters:
 | `pageSize` | int | defaults to `20` |
 
 `season` and `location` are **not** query filters. Each returned item does
-include **season**, **location**, `problemTagsJson`, and `aiModel` as fields -
-see the known persistence gap noted above for why `season`/`location`/`aiModel`
-currently come back null/empty.
+include **season**, **location**, `problemTagsJson`, and `aiModel` as fields,
+populated from what was actually submitted/used for that analysis (`season`/
+`location` are `null` when not supplied).
 
 ---
 

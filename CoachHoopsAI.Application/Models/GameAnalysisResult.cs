@@ -11,6 +11,10 @@ namespace CoachHoopsAI.Application.Models
 
         public GameDiagnostics? Diagnostics { get; set; }  // V1.1
 
+        // The model identifier reported by whichever ILlmSuggestionClient produced
+        // Suggestions above (see AnalysisHistoryService, which persists this).
+        public string AiModel { get; set; } = string.Empty;
+
         public GameAnalysisResult() { }
             
     }

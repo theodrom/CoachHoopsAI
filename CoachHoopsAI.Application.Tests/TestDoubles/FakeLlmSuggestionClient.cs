@@ -9,6 +9,8 @@ namespace CoachHoopsAI.Application.Tests.TestDoubles;
 // network calls. Records what GameAnalysisService grounded it with.
 public class FakeLlmSuggestionClient : ILlmSuggestionClient
 {
+    public string ModelName { get; set; } = "Fake-Model";
+
     public IReadOnlyCollection<Suggestion> SuggestionsToReturn { get; set; } = Array.Empty<Suggestion>();
 
     public GameAnalysisInput? LastInput { get; private set; }
