@@ -26,6 +26,8 @@ builder.Services.AddOpenApi();
 // Validators
 builder.Services.AddScoped<IValidator<AnalyzeGameRequest>, AnalyzeGameRequestValidator>();
 builder.Services.AddScoped<IValidator<TeamStatsDto>, TeamStatsDtoValidator>();
+builder.Services.AddScoped<IValidator<GameFormatDto>, GameFormatDtoValidator>();
+builder.Services.AddScoped<IValidator<GameTimingDto>, GameTimingDtoValidator>();
 
 // Domain
 builder.Services.AddSingleton<IStatRulesEngine, StatRulesEngine>();

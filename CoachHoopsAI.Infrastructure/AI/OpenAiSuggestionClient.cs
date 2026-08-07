@@ -127,6 +127,15 @@ namespace CoachHoopsAI.Infrastructure.AI
                 if (string.IsNullOrWhiteSpace(text) || string.IsNullOrWhiteSpace(reason))
                     continue;
 
+                // The system/user prompt tells the model never to echo internal
+                // identifiers, but prompt instructions aren't a guarantee - drop any
+                // suggestion that leaks one of the exact identifiers this request
+                // exposed to the model (a ProblemTag name or a rules-profile key)
+                // rather than trusting the model to have obeyed.
+                if (ExposesInternalIdentifier(text, problemTags, appliedRulesProfile, input.RulesProfile) ||
+                    ExposesInternalIdentifier(reason, problemTags, appliedRulesProfile, input.RulesProfile))
+                    continue;
+
                 results.Add(new Suggestion(cat, text, reason));
             }
 
@@ -136,6 +145,33 @@ namespace CoachHoopsAI.Infrastructure.AI
         private static SuggestionCategory ParseCategory(string? category)
         {
             return Enum.TryParse<SuggestionCategory>(category, ignoreCase: true, out var cat) ? cat : SuggestionCategory.Other;
+        }
+
+        // Checks only the exact identifiers this request actually put in front of the
+        // model (its ProblemTags and rules-profile name(s)) - not every ProblemTag
+        // that exists - so natural coaching prose that happens to share a word with an
+        // enum name (e.g. "turnover") is never mistaken for a leaked identifier.
+        private static bool ExposesInternalIdentifier(
+            string generatedText,
+            IReadOnlyCollection<ProblemTag> problemTags,
+            string? appliedRulesProfile,
+            string? requestedRulesProfile)
+        {
+            foreach (var tag in problemTags)
+            {
+                if (generatedText.Contains(tag.ToString(), StringComparison.Ordinal))
+                    return true;
+            }
+
+            if (!string.IsNullOrWhiteSpace(appliedRulesProfile) &&
+                generatedText.Contains(appliedRulesProfile, StringComparison.Ordinal))
+                return true;
+
+            if (!string.IsNullOrWhiteSpace(requestedRulesProfile) &&
+                generatedText.Contains(requestedRulesProfile, StringComparison.Ordinal))
+                return true;
+
+            return false;
         }
 
         private static object BuildJsonSchema()
@@ -192,7 +228,10 @@ namespace CoachHoopsAI.Infrastructure.AI
                 "a specific drill, a specific defensive coverage, a specific spacing/possession adjustment, or a specific role assignment.\n" +
                 "4. Pick the top issues. Do not try to cover every possible weakness.\n" +
                 "5. Each suggestion's \"category\" must be exactly one of: \"Offense\", \"Defense\", \"Other\".\n" +
-                "6. Output strictly valid JSON that conforms to the provided JSON Schema. No prose, no markdown, no comments, no trailing text.\n";
+                "6. Output strictly valid JSON that conforms to the provided JSON Schema. No prose, no markdown, no comments, no trailing text.\n" +
+                "7. \"problemTags\" and \"rulesProfileApplied\"/\"rulesProfileRequested\" are internal system identifiers (e.g. \"TurnoverProblem\", \"Amateur_Default\"), " +
+                "not coaching language. Ground your reasoning in what they mean, but never copy one of these raw identifiers into \"text\" or \"reason\" - " +
+                "describe the underlying issue in plain coaching language instead.\n";
 
             // Level-specific tone and vocabulary guardrails.
             var levelGuide = level switch
@@ -275,6 +314,7 @@ namespace CoachHoopsAI.Infrastructure.AI
                 "- Return ONLY a JSON object that matches the provided schema.\n" +
                 "- Each suggestion: \"category\" in {Offense, Defense, Other}, \"text\" is the action, \"reason\" cites the grounding tag/metric.\n" +
                 "- No invented numbers. No generic advice. No markdown. No commentary outside the JSON.\n" +
+                "- Never repeat a \"problemTags\" entry or a rules-profile key verbatim in \"text\" or \"reason\" - translate it into natural coaching language.\n" +
                 "\n" +
                 "Game payload:\n";
 

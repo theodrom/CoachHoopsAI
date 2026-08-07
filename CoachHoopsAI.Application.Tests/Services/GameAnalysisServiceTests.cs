@@ -14,8 +14,18 @@ namespace CoachHoopsAI.Application.Tests.Services;
 // covered separately in CoachHoopsAI.Domain.Tests.
 public class GameAnalysisServiceTests
 {
-    private static TeamStats Stats(int points = 80) =>
-        new(points, 0.50, 0.35, 20, 10, 30, 12, 15);
+    private static TeamStats Stats(int points = 80) => new()
+    {
+        Points = points,
+        FieldGoalsMade = 30,
+        FieldGoalsAttempted = 60,
+        ThreePointsMade = 7,
+        ThreePointsAttempted = 20,
+        OffensiveRebounds = 10,
+        DefensiveRebounds = 30,
+        Turnovers = 12,
+        PersonalFouls = 15
+    };
 
     private static GameAnalysisInput Input(TeamStats? team = null, TeamStats? opponent = null) =>
         new(Level.Amateur, team ?? Stats(80), opponent ?? Stats(70), "coach notes", metadata: null, rulesProfile: null);

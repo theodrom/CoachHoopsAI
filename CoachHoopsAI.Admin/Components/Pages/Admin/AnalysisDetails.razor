@@ -112,8 +112,8 @@ else
             <dt class="col-sm-3">Ruleset version</dt>     <dd class="col-sm-9">@_record.RulesetVersion</dd>
             <dt class="col-sm-3">Prompt version</dt>      <dd class="col-sm-9">@_record.PromptVersion</dd>
             <dt class="col-sm-3">AI model</dt>            <dd class="col-sm-9">@(_record.AiModel ?? "no given name")</dd>
-            <dt class="col-sm-3">Requested profile</dt>   <dd class="col-sm-9">@(_record.RequestedRulesProfile ?? "no given name")</dd>
-            <dt class="col-sm-3">Applied profile</dt>     <dd class="col-sm-9">@_record.AppliedRulesProfile</dd>
+            <dt class="col-sm-3">Requested profile</dt>   <dd class="col-sm-9">@(_record.RequestedRulesProfile is null ? "no given name" : DisplayFormatting.HumanizeRulesProfileName(_record.RequestedRulesProfile))</dd>
+            <dt class="col-sm-3">Applied profile</dt>     <dd class="col-sm-9">@DisplayFormatting.HumanizeRulesProfileName(_record.AppliedRulesProfile)</dd>
         </dl>
     </section>
 

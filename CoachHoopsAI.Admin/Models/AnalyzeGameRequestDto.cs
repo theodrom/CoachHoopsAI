@@ -11,6 +11,9 @@ namespace CoachHoopsAI.Admin.Models
         [Required]
         public string? Level { get; set; }
 
+        public GameFormatDto GameFormat { get; set; } = new();
+        public GameTimingDto GameTiming { get; set; } = new();
+
         public string? Notes { get; set; }
         public DateTime? GameDate { get; set; }
         public string? TeamName { get; set; }

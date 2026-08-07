@@ -10,39 +10,75 @@ namespace CoachHoopsAI.Api.Tests.Contracts;
 // Regression coverage for the request->domain and result->response mapping in
 // AnalyzeGameMappings. The reflection-based test below is deliberately written so
 // that it FAILS if a TeamStatsDto property is ever added without a matching,
-// correctly-mapped property on the domain TeamStats entity (the exact class of bug
-// that broke the build before this milestone: a DTO/domain shape drifting apart).
+// correctly-mapped property on the domain TeamStats entity - the exact class of bug
+// that broke the build before Milestone 0: a DTO/domain shape drifting apart.
 public class AnalyzeGameMappingsTests
 {
     private static TeamStatsDto SampleTeamDto() => new()
     {
         Points = 111,
-        FieldGoalPercentage = 0.512,
-        ThreePointPercentage = 0.411,
-        ThreePointAttempts = 21,
+        FieldGoalsMade = 41,
+        FieldGoalsAttempted = 85,
+        ThreePointsMade = 12,
+        ThreePointsAttempted = 30,
+        FreeThrowsMade = 17,
+        FreeThrowsAttempted = 21,
         OffensiveRebounds = 9,
         DefensiveRebounds = 33,
+        Assists = 24,
         Turnovers = 13,
-        Fouls = 17
+        Steals = 8,
+        Blocks = 4,
+        PersonalFouls = 17
     };
 
     private static TeamStatsDto SampleOpponentDto() => new()
     {
         Points = 98,
-        FieldGoalPercentage = 0.44,
-        ThreePointPercentage = 0.33,
-        ThreePointAttempts = 17,
+        FieldGoalsMade = 36,
+        FieldGoalsAttempted = 80,
+        ThreePointsMade = 9,
+        ThreePointsAttempted = 26,
+        FreeThrowsMade = 17,
+        FreeThrowsAttempted = 22,
         OffensiveRebounds = 11,
         DefensiveRebounds = 27,
+        Assists = 19,
         Turnovers = 15,
-        Fouls = 19
+        Steals = 6,
+        Blocks = 2,
+        PersonalFouls = 19
+    };
+
+    private static GameFormatDto SampleGameFormatDto() => new()
+    {
+        RegulationPeriods = 4,
+        RegulationPeriodMinutes = 10,
+        OvertimePeriodMinutes = 5,
+        Name = "FIBA"
+    };
+
+    private static GameTimingDto SampleGameTimingDto() => new()
+    {
+        CurrentPeriod = 3,
+        ClockRemainingSeconds = 300
+    };
+
+    private static AnalyzeGameRequest ValidRequest() => new()
+    {
+        Team = SampleTeamDto(),
+        Opponent = SampleOpponentDto(),
+        Level = "Amateur",
+        GameFormat = SampleGameFormatDto(),
+        GameTiming = SampleGameTimingDto()
     };
 
     [Fact]
     public void ToGameAnalysisInput_MapsEveryTeamStatsDtoPropertyOntoDomainTeamStatsByName()
     {
         var dto = SampleTeamDto();
-        var request = new AnalyzeGameRequest { Team = dto, Opponent = SampleOpponentDto(), Level = "Amateur" };
+        var request = ValidRequest();
+        request.Team = dto;
 
         var input = request.ToGameAnalysisInput();
 
@@ -53,7 +89,8 @@ public class AnalyzeGameMappingsTests
     public void ToGameAnalysisInput_MapsEveryOpponentStatsDtoPropertyOntoDomainTeamStatsByName()
     {
         var dto = SampleOpponentDto();
-        var request = new AnalyzeGameRequest { Team = SampleTeamDto(), Opponent = dto, Level = "Amateur" };
+        var request = ValidRequest();
+        request.Opponent = dto;
 
         var input = request.ToGameAnalysisInput();
 
@@ -77,13 +114,67 @@ public class AnalyzeGameMappingsTests
     [Fact]
     public void ToGameAnalysisInput_NullTeamAndOpponent_DefaultsToZeroedStats()
     {
-        var request = new AnalyzeGameRequest { Team = null, Opponent = null, Level = "Amateur" };
+        var request = ValidRequest();
+        request.Team = null;
+        request.Opponent = null;
 
         var input = request.ToGameAnalysisInput();
 
         Assert.Equal(0, input.Team.Points);
         Assert.Equal(0, input.Opponent.Points);
-        Assert.Equal(0.0, input.Team.FieldGoalPercentage);
+        Assert.Equal(0, input.Team.FieldGoalsAttempted);
+    }
+
+    [Fact]
+    public void ToGameAnalysisInput_MapsEveryGameFormatDtoPropertyOntoDomainGameFormat()
+    {
+        var dto = SampleGameFormatDto();
+        var request = ValidRequest();
+        request.GameFormat = dto;
+
+        var input = request.ToGameAnalysisInput();
+
+        Assert.NotNull(input.GameFormat);
+        Assert.Equal(dto.RegulationPeriods, input.GameFormat!.RegulationPeriods);
+        Assert.Equal(dto.RegulationPeriodMinutes, input.GameFormat!.RegulationPeriodMinutes);
+        Assert.Equal(dto.OvertimePeriodMinutes, input.GameFormat!.OvertimePeriodMinutes);
+        Assert.Equal(dto.Name, input.GameFormat!.Name);
+    }
+
+    [Fact]
+    public void ToGameAnalysisInput_NullGameFormat_MapsToNull()
+    {
+        var request = ValidRequest();
+        request.GameFormat = null;
+
+        var input = request.ToGameAnalysisInput();
+
+        Assert.Null(input.GameFormat);
+    }
+
+    [Fact]
+    public void ToGameAnalysisInput_MapsGameTimingClockRemainingSecondsToTimeSpan()
+    {
+        var dto = SampleGameTimingDto();
+        var request = ValidRequest();
+        request.GameTiming = dto;
+
+        var input = request.ToGameAnalysisInput();
+
+        Assert.NotNull(input.GameTiming);
+        Assert.Equal(dto.CurrentPeriod, input.GameTiming!.CurrentPeriod);
+        Assert.Equal(TimeSpan.FromSeconds(dto.ClockRemainingSeconds), input.GameTiming!.ClockRemaining);
+    }
+
+    [Fact]
+    public void ToGameAnalysisInput_NullGameTiming_MapsToNull()
+    {
+        var request = ValidRequest();
+        request.GameTiming = null;
+
+        var input = request.ToGameAnalysisInput();
+
+        Assert.Null(input.GameTiming);
     }
 
     [Theory]
@@ -97,7 +188,8 @@ public class AnalyzeGameMappingsTests
     [InlineData("not-a-level", Level.Amateur)] // documented fallback
     public void ToGameAnalysisInput_ParsesLevelStringWithDocumentedFallback(string levelText, Level expected)
     {
-        var request = new AnalyzeGameRequest { Team = SampleTeamDto(), Opponent = SampleOpponentDto(), Level = levelText };
+        var request = ValidRequest();
+        request.Level = levelText;
 
         var input = request.ToGameAnalysisInput();
 
@@ -107,17 +199,12 @@ public class AnalyzeGameMappingsTests
     [Fact]
     public void ToGameAnalysisInput_MapsMetadataAndNotes()
     {
-        var request = new AnalyzeGameRequest
-        {
-            Team = SampleTeamDto(),
-            Opponent = SampleOpponentDto(),
-            Level = "Pro",
-            Notes = "Struggled with their PnR.",
-            TeamName = "  Falcons  ",
-            OpponentName = "Hawks",
-            Season = "2025/2026",
-            Location = "Home Arena"
-        };
+        var request = ValidRequest();
+        request.Notes = "Struggled with their PnR.";
+        request.TeamName = "  Falcons  ";
+        request.OpponentName = "Hawks";
+        request.Season = "2025/2026";
+        request.Location = "Home Arena";
 
         var input = request.ToGameAnalysisInput();
 

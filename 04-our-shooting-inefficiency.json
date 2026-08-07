@@ -1,25 +1,47 @@
 {
   "team": {
     "points": 71,
-    "fieldGoalPercentage": 0.41,
-    "threePointPercentage": 0.26,
-    "threePointAttempts": 29,
+    "fieldGoalsMade": 27,
+    "fieldGoalsAttempted": 65,
+    "threePointsMade": 8,
+    "threePointsAttempted": 29,
+    "freeThrowsMade": 11,
+    "freeThrowsAttempted": 16,
     "offensiveRebounds": 11,
     "defensiveRebounds": 24,
+    "assists": 13,
     "turnovers": 11,
-    "fouls": 19
+    "steals": 8,
+    "blocks": 1,
+    "personalFouls": 19
   },
   "opponent": {
     "points": 76,
-    "fieldGoalPercentage": 0.44,
-    "threePointPercentage": 0.33,
-    "threePointAttempts": 21,
+    "fieldGoalsMade": 29,
+    "fieldGoalsAttempted": 65,
+    "threePointsMade": 7,
+    "threePointsAttempted": 21,
+    "freeThrowsMade": 13,
+    "freeThrowsAttempted": 18,
     "offensiveRebounds": 10,
     "defensiveRebounds": 25,
+    "assists": 15,
     "turnovers": 14,
-    "fouls": 21
+    "steals": 7,
+    "blocks": 3,
+    "personalFouls": 21
   },
   "level": "Amateur",
+  "gameFormat": {
+    "regulationPeriods": 4,
+    "regulationPeriodMinutes": 10,
+    "overtimePeriodMinutes": 5,
+    "name": "FIBA"
+  },
+  "gameTiming": {
+    "currentPeriod": 4,
+    "clockRemainingSeconds": 0
+  },
   "notes": "We settled for early threes and didn't get paint touches.",
   "gameDate": "2025-11-22T18:00:00",
   "teamName": "Southside Bears",

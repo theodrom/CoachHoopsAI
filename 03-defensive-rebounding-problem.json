@@ -1,25 +1,47 @@
 {
   "team": {
     "points": 84,
-    "fieldGoalPercentage": 0.44,
-    "threePointPercentage": 0.33,
-    "threePointAttempts": 21,
+    "fieldGoalsMade": 29,
+    "fieldGoalsAttempted": 65,
+    "threePointsMade": 7,
+    "threePointsAttempted": 21,
+    "freeThrowsMade": 14,
+    "freeThrowsAttempted": 19,
     "offensiveRebounds": 7,
     "defensiveRebounds": 19,
+    "assists": 16,
     "turnovers": 13,
-    "fouls": 20
+    "steals": 5,
+    "blocks": 2,
+    "personalFouls": 20
   },
   "opponent": {
     "points": 90,
-    "fieldGoalPercentage": 0.45,
-    "threePointPercentage": 0.32,
-    "threePointAttempts": 20,
+    "fieldGoalsMade": 29,
+    "fieldGoalsAttempted": 65,
+    "threePointsMade": 6,
+    "threePointsAttempted": 20,
+    "freeThrowsMade": 18,
+    "freeThrowsAttempted": 23,
     "offensiveRebounds": 15,
     "defensiveRebounds": 26,
+    "assists": 19,
     "turnovers": 12,
-    "fouls": 18
+    "steals": 6,
+    "blocks": 3,
+    "personalFouls": 18
   },
   "level": "Youth",
+  "gameFormat": {
+    "regulationPeriods": 4,
+    "regulationPeriodMinutes": 10,
+    "overtimePeriodMinutes": 5,
+    "name": "FIBA"
+  },
+  "gameTiming": {
+    "currentPeriod": 4,
+    "clockRemainingSeconds": 0
+  },
   "notes": "They got multiple second-chance points. We didn't box out.",
   "gameDate": "2025-12-14T12:30:00",
   "teamName": "West U16",

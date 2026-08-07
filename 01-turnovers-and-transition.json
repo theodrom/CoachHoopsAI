@@ -1,25 +1,47 @@
 {
   "team": {
     "points": 78,
-    "fieldGoalPercentage": 0.43,
-    "threePointPercentage": 0.31,
-    "threePointAttempts": 18,
+    "fieldGoalsMade": 28,
+    "fieldGoalsAttempted": 65,
+    "threePointsMade": 7,
+    "threePointsAttempted": 20,
+    "freeThrowsMade": 14,
+    "freeThrowsAttempted": 19,
     "offensiveRebounds": 9,
     "defensiveRebounds": 22,
+    "assists": 15,
     "turnovers": 20,
-    "fouls": 18
+    "steals": 7,
+    "blocks": 3,
+    "personalFouls": 18
   },
   "opponent": {
     "points": 92,
-    "fieldGoalPercentage": 0.48,
-    "threePointPercentage": 0.34,
-    "threePointAttempts": 22,
+    "fieldGoalsMade": 31,
+    "fieldGoalsAttempted": 65,
+    "threePointsMade": 7,
+    "threePointsAttempted": 22,
+    "freeThrowsMade": 12,
+    "freeThrowsAttempted": 15,
     "offensiveRebounds": 8,
     "defensiveRebounds": 24,
+    "assists": 18,
     "turnovers": 10,
-    "fouls": 16
+    "steals": 6,
+    "blocks": 4,
+    "personalFouls": 16
   },
   "level": "Amateur",
+  "gameFormat": {
+    "regulationPeriods": 4,
+    "regulationPeriodMinutes": 10,
+    "overtimePeriodMinutes": 5,
+    "name": "FIBA"
+  },
+  "gameTiming": {
+    "currentPeriod": 4,
+    "clockRemainingSeconds": 0
+  },
   "notes": "We gave up too many run-outs after live-ball turnovers.",
   "gameDate": "2026-01-06T19:00:00",
   "teamName": "Bromma Wolves",

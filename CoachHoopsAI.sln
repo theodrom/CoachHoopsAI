@@ -66,6 +66,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoachHoopsAI.Application.Te
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoachHoopsAI.Api.Tests", "CoachHoopsAI.Api.Tests\CoachHoopsAI.Api.Tests.csproj", "{049CE54A-D3E7-4AE7-9E89-330738C1FD54}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "CoachHoopsAI.Infrastructure.Tests", "CoachHoopsAI.Infrastructure.Tests\CoachHoopsAI.Infrastructure.Tests.csproj", "{6B84A942-9AF6-4908-BDAF-84EE0FB20590}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -184,6 +186,18 @@ Global
 		{049CE54A-D3E7-4AE7-9E89-330738C1FD54}.Release|x64.Build.0 = Release|Any CPU
 		{049CE54A-D3E7-4AE7-9E89-330738C1FD54}.Release|x86.ActiveCfg = Release|Any CPU
 		{049CE54A-D3E7-4AE7-9E89-330738C1FD54}.Release|x86.Build.0 = Release|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Debug|x64.Build.0 = Debug|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Debug|x86.Build.0 = Debug|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Release|Any CPU.Build.0 = Release|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Release|x64.ActiveCfg = Release|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Release|x64.Build.0 = Release|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Release|x86.ActiveCfg = Release|Any CPU
+		{6B84A942-9AF6-4908-BDAF-84EE0FB20590}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE

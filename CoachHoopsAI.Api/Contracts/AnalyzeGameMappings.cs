@@ -2,6 +2,7 @@
 using CoachHoopsAI.Application.Models;
 using CoachHoopsAI.Domain.Entities;
 using CoachHoopsAI.Domain.Enums;
+using CoachHoopsAI.Domain.GameContext;
 
 namespace CoachHoopsAI.Api.Contracts
 {
@@ -16,25 +17,8 @@ namespace CoachHoopsAI.Api.Contracts
 
             var level = ParseLevel(request.Level ?? string.Empty);
 
-            var team = new TeamStats(
-                request.Team?.Points ?? 0,
-                request.Team?.FieldGoalPercentage ?? 0,
-                request.Team?.ThreePointPercentage ?? 0,
-                request.Team?.ThreePointAttempts ?? 0,
-                request.Team?.OffensiveRebounds ?? 0,
-                request.Team?.DefensiveRebounds ?? 0,
-                request.Team?.Turnovers ?? 0,
-                request.Team?.Fouls ?? 0);
-
-            var opponent = new TeamStats(
-                request.Opponent?.Points ?? 0,
-                request.Opponent?.FieldGoalPercentage ?? 0,
-                request.Opponent?.ThreePointPercentage ?? 0,
-                request.Opponent?.ThreePointAttempts ?? 0,
-                request.Opponent?.OffensiveRebounds ?? 0,
-                request.Opponent?.DefensiveRebounds ?? 0,
-                request.Opponent?.Turnovers ?? 0,
-                request.Opponent?.Fouls ?? 0);
+            var team = ToTeamStats(request.Team);
+            var opponent = ToTeamStats(request.Opponent);
 
             var metadata = new GameMetadata(
                 request.GameDate,
@@ -45,14 +29,63 @@ namespace CoachHoopsAI.Api.Contracts
                 string.IsNullOrWhiteSpace(request.Location) ? null : request.Location.Trim()
             );
 
+            var gameFormat = ToGameFormat(request.GameFormat);
+            var gameTiming = ToGameTiming(request.GameTiming);
+
             return new GameAnalysisInput(
                 level,
                 team,
                 opponent,
                 request?.Notes ?? string.Empty,
                 metadata,
-                request?.RulesProfile);
+                request?.RulesProfile,
+                gameFormat,
+                gameTiming);
 
+        }
+
+        private static TeamStats ToTeamStats(TeamStatsDto? dto) => new()
+        {
+            Points = dto?.Points ?? 0,
+            FieldGoalsMade = dto?.FieldGoalsMade ?? 0,
+            FieldGoalsAttempted = dto?.FieldGoalsAttempted ?? 0,
+            ThreePointsMade = dto?.ThreePointsMade ?? 0,
+            ThreePointsAttempted = dto?.ThreePointsAttempted ?? 0,
+            FreeThrowsMade = dto?.FreeThrowsMade ?? 0,
+            FreeThrowsAttempted = dto?.FreeThrowsAttempted ?? 0,
+            OffensiveRebounds = dto?.OffensiveRebounds ?? 0,
+            DefensiveRebounds = dto?.DefensiveRebounds ?? 0,
+            Assists = dto?.Assists ?? 0,
+            Turnovers = dto?.Turnovers ?? 0,
+            Steals = dto?.Steals ?? 0,
+            Blocks = dto?.Blocks ?? 0,
+            PersonalFouls = dto?.PersonalFouls ?? 0
+        };
+
+        private static GameFormat? ToGameFormat(GameFormatDto? dto)
+        {
+            if (dto == null)
+                return null;
+
+            return new GameFormat
+            {
+                RegulationPeriods = dto.RegulationPeriods,
+                RegulationPeriodMinutes = dto.RegulationPeriodMinutes,
+                OvertimePeriodMinutes = dto.OvertimePeriodMinutes,
+                Name = string.IsNullOrWhiteSpace(dto.Name) ? null : dto.Name.Trim()
+            };
+        }
+
+        private static GameTiming? ToGameTiming(GameTimingDto? dto)
+        {
+            if (dto == null)
+                return null;
+
+            return new GameTiming
+            {
+                CurrentPeriod = dto.CurrentPeriod,
+                ClockRemaining = TimeSpan.FromSeconds(dto.ClockRemainingSeconds)
+            };
         }
 
         public static AnalyzeGameResponse ToResponseDto(this GameAnalysisResult result)

@@ -5,22 +5,52 @@ using ProblemTag = CoachHoopsAI.Domain.Enums.ProblemTag;
 namespace CoachHoopsAI.Domain.Tests.Rules;
 
 // Locks down today's StatRulesEngine behavior (12 threshold-based rules against a
-// RulesProfile) so it can be safely evolved in a later milestone. Every test uses
-// a "healthy" baseline that trips no rules, then perturbs exactly the stat(s) a
-// single rule reads so failures point at the rule that broke.
+// RulesProfile) so it can be safely evolved in a later milestone. TeamStats now
+// stores only raw made/attempted counts (Milestone 1); every percentage-driven
+// scenario below is built from an exact made/attempted ratio rather than a stored
+// percentage, per the engine's LegacyPercentageBridge (FGM/FGA, 3PM/3PA).
 public class StatRulesEngineTests
 {
     private readonly StatRulesEngine _engine = new();
     private readonly RulesProfile _profile = new(); // default thresholds
 
-    // Points, FieldGoalPct, ThreePointPct, ThreePointAttempts, OffensiveRebounds, DefensiveRebounds, Turnovers, Fouls
-    private static TeamStats Healthy() =>
-        new(points: 80, fieldGoalPercentage: 0.50, threePointPercentage: 0.35, threePointAttempts: 20,
-            offensiveRebounds: 10, defensiveRebounds: 30, turnovers: 12, fouls: 15);
+    // FG 30/60 = 0.50, 3P 7/20 = 0.35 - matches the pre-Milestone-1 "healthy" baseline.
+    private static TeamStats Healthy() => new()
+    {
+        Points = 80,
+        FieldGoalsMade = 30,
+        FieldGoalsAttempted = 60,
+        ThreePointsMade = 7,
+        ThreePointsAttempted = 20,
+        FreeThrowsMade = 12,
+        FreeThrowsAttempted = 16,
+        OffensiveRebounds = 10,
+        DefensiveRebounds = 30,
+        Assists = 18,
+        Turnovers = 12,
+        Steals = 6,
+        Blocks = 3,
+        PersonalFouls = 15
+    };
 
-    private static TeamStats HealthyOpponent() =>
-        new(points: 78, fieldGoalPercentage: 0.45, threePointPercentage: 0.30, threePointAttempts: 18,
-            offensiveRebounds: 8, defensiveRebounds: 28, turnovers: 14, fouls: 16);
+    // FG 27/60 = 0.45, 3P 6/20 = 0.30.
+    private static TeamStats HealthyOpponent() => new()
+    {
+        Points = 78,
+        FieldGoalsMade = 27,
+        FieldGoalsAttempted = 60,
+        ThreePointsMade = 6,
+        ThreePointsAttempted = 20,
+        FreeThrowsMade = 12,
+        FreeThrowsAttempted = 15,
+        OffensiveRebounds = 8,
+        DefensiveRebounds = 28,
+        Assists = 16,
+        Turnovers = 14,
+        Steals = 5,
+        Blocks = 2,
+        PersonalFouls = 16
+    };
 
     [Fact]
     public void Evaluate_HealthyStatsForBothTeams_ReturnsNoTags()
@@ -37,7 +67,7 @@ public class StatRulesEngineTests
     public void Evaluate_TurnoverDiff_Boundary(int diff, bool expectTag)
     {
         var opponent = HealthyOpponent();
-        var team = new TeamStats(80, 0.50, 0.35, 20, 10, 30, opponent.Turnovers + diff, 15);
+        var team = Healthy() with { Turnovers = opponent.Turnovers + diff };
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
@@ -47,7 +77,8 @@ public class StatRulesEngineTests
     [Fact]
     public void Evaluate_BadThreePointShootingWithVolume_TriggersOurShootingInefficiency()
     {
-        var team = new TeamStats(80, 0.50, threePointPercentage: 0.25, threePointAttempts: 16, 10, 30, 12, 15);
+        // 3P 4/16 = 0.25 (<= OurBadThreePct 0.30), attempts 16 >= OurBadThreeAttemptsMin (15).
+        var team = Healthy() with { ThreePointsMade = 4, ThreePointsAttempted = 16 };
         var opponent = HealthyOpponent();
 
         var tags = _engine.Evaluate(team, opponent, _profile);
@@ -58,7 +89,8 @@ public class StatRulesEngineTests
     [Fact]
     public void Evaluate_TooManyLowPercentageThreeAttempts_TriggersTooManyThreePointAttempts()
     {
-        var team = new TeamStats(80, 0.50, threePointPercentage: 0.30, threePointAttempts: 32, 10, 30, 12, 15);
+        // 3P 12/40 = 0.30 (<= TooManyThreePctMax 0.33), attempts 40 >= TooManyThreeAttemptsMin (30).
+        var team = Healthy() with { ThreePointsMade = 12, ThreePointsAttempted = 40 };
         var opponent = HealthyOpponent();
 
         var tags = _engine.Evaluate(team, opponent, _profile);
@@ -69,8 +101,9 @@ public class StatRulesEngineTests
     [Fact]
     public void Evaluate_LosingByEnoughWithLowFieldGoalPct_TriggersOffensiveEfficiencyProblem()
     {
-        var team = new TeamStats(points: 70, fieldGoalPercentage: 0.40, 0.35, 20, 10, 30, 12, 15);
-        var opponent = new TeamStats(points: 82, 0.45, 0.30, 18, 8, 28, 14, 16); // +12 margin
+        // Team FG 20/50 = 0.40 (<= OurLowFieldGoalPctForOffensiveEfficiency 0.45).
+        var team = Healthy() with { Points = 70, FieldGoalsMade = 20, FieldGoalsAttempted = 50 };
+        var opponent = HealthyOpponent() with { Points = 82 }; // +12 margin
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
@@ -80,8 +113,8 @@ public class StatRulesEngineTests
     [Fact]
     public void Evaluate_FarFewerFoulsWhileNotAheadOnScore_TriggersLackOfPaintPressure()
     {
-        var team = new TeamStats(points: 70, 0.50, 0.35, 20, 10, 30, 12, fouls: 10);
-        var opponent = new TeamStats(points: 78, 0.45, 0.30, 18, 8, 28, 14, fouls: 16); // team.Fouls <= opp.Fouls - 5
+        var team = Healthy() with { Points = 70, PersonalFouls = 10 };
+        var opponent = HealthyOpponent() with { Points = 78, PersonalFouls = 16 }; // team.Fouls <= opp.Fouls - 5
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
@@ -89,13 +122,13 @@ public class StatRulesEngineTests
     }
 
     [Theory]
-    [InlineData(0.51, false)] // just below OpponentHighFieldGoalPct (0.52)
-    [InlineData(0.52, true)]  // at threshold (>=)
-    [InlineData(0.55, true)]  // above threshold
-    public void Evaluate_OpponentFieldGoalPct_Boundary(double opponentFgPct, bool expectTag)
+    [InlineData(51, false)] // FG 51/100 = 0.51, just below OpponentHighFieldGoalPct (0.52)
+    [InlineData(52, true)]  // FG 52/100 = 0.52, at threshold (>=)
+    [InlineData(55, true)]  // FG 55/100 = 0.55, above threshold
+    public void Evaluate_OpponentFieldGoalPct_Boundary(int made, bool expectTag)
     {
         var team = Healthy();
-        var opponent = new TeamStats(78, opponentFgPct, 0.30, 18, 8, 28, 14, 16);
+        var opponent = HealthyOpponent() with { FieldGoalsMade = made, FieldGoalsAttempted = 100 };
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
@@ -105,8 +138,9 @@ public class StatRulesEngineTests
     [Fact]
     public void Evaluate_OpponentHotFromThreeWithVolume_TriggersOpponentHotFromThree()
     {
+        // 3P 8/20 = 0.40 (>= OpponentHotThreePct 0.38), attempts 20 >= OpponentHotThreeAttemptsMin (20).
         var team = Healthy();
-        var opponent = new TeamStats(78, 0.45, threePointPercentage: 0.40, threePointAttempts: 22, 8, 28, 14, 16);
+        var opponent = HealthyOpponent() with { ThreePointsMade = 8, ThreePointsAttempted = 20 };
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
@@ -118,8 +152,9 @@ public class StatRulesEngineTests
     {
         // PerimeterDefenseProblem bypasses RulesProfile: hardcoded opponent 3P% >= 0.36
         // and opponent 3PA >= team 3PA + 5.
-        var team = new TeamStats(80, 0.50, 0.35, threePointAttempts: 10, 10, 30, 12, 15);
-        var opponent = new TeamStats(78, 0.45, threePointPercentage: 0.37, threePointAttempts: 16, 8, 28, 14, 16);
+        var team = Healthy() with { ThreePointsMade = 3, ThreePointsAttempted = 10 };
+        // 3P 37/100 = 0.37.
+        var opponent = HealthyOpponent() with { ThreePointsMade = 37, ThreePointsAttempted = 100 };
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
@@ -129,8 +164,8 @@ public class StatRulesEngineTests
     [Fact]
     public void Evaluate_LosingByEnoughWithHighTurnovers_TriggersTransitionDefenseProblem()
     {
-        var team = new TeamStats(points: 65, 0.50, 0.35, 20, 10, 30, turnovers: 16, fouls: 15);
-        var opponent = new TeamStats(points: 80, 0.45, 0.30, 18, 8, 28, 14, 16); // +15 margin
+        var team = Healthy() with { Points = 65, Turnovers = 16 };
+        var opponent = HealthyOpponent() with { Points = 80 }; // +15 margin
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
@@ -138,13 +173,13 @@ public class StatRulesEngineTests
     }
 
     [Theory]
-    [InlineData(4, false)] // team.Fouls - opponent.Fouls == FoulsDiffToFlag - 1
+    [InlineData(4, false)] // team.PersonalFouls - opponent.PersonalFouls == FoulsDiffToFlag - 1
     [InlineData(5, true)]  // == FoulsDiffToFlag (boundary)
     [InlineData(6, true)]
     public void Evaluate_FoulsDiff_Boundary(int diff, bool expectTag)
     {
         var opponent = HealthyOpponent();
-        var team = new TeamStats(80, 0.50, 0.35, 20, 10, 30, 12, fouls: opponent.Fouls + diff);
+        var team = Healthy() with { PersonalFouls = opponent.PersonalFouls + diff };
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
@@ -154,8 +189,8 @@ public class StatRulesEngineTests
     [Fact]
     public void Evaluate_OpponentOutreboundsOnOffensiveGlass_TriggersDefensiveReboundProblem()
     {
-        var team = new TeamStats(80, 0.50, 0.35, 20, offensiveRebounds: 6, 30, 12, 15);
-        var opponent = new TeamStats(78, 0.45, 0.30, 18, offensiveRebounds: 12, 28, 14, 16); // diff = 6 >= 5
+        var team = Healthy() with { OffensiveRebounds = 6 };
+        var opponent = HealthyOpponent() with { OffensiveRebounds = 12 }; // diff = 6 >= 5
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
@@ -169,7 +204,7 @@ public class StatRulesEngineTests
     public void Evaluate_PointMargin_Boundary(int margin, bool expectTag)
     {
         var opponent = HealthyOpponent();
-        var team = new TeamStats(points: opponent.Points + margin, 0.50, 0.35, 20, 10, 30, 12, 15);
+        var team = Healthy() with { Points = opponent.Points + margin };
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
@@ -181,8 +216,15 @@ public class StatRulesEngineTests
     {
         // Team commits far more turnovers AND has a big offensive-rebound deficit;
         // opponent also shoots well from the field. Three independent rules should fire.
-        var team = new TeamStats(60, 0.40, 0.25, 10, offensiveRebounds: 4, 25, turnovers: 22, fouls: 15);
-        var opponent = new TeamStats(70, fieldGoalPercentage: 0.55, 0.30, 15, offensiveRebounds: 12, 28, turnovers: 12, fouls: 16);
+        var team = Healthy() with { Points = 60, Turnovers = 22, OffensiveRebounds = 4 };
+        // FG 55/100 = 0.55.
+        var opponent = HealthyOpponent() with
+        {
+            Points = 70,
+            FieldGoalsMade = 55,
+            FieldGoalsAttempted = 100,
+            OffensiveRebounds = 12
+        };
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 

@@ -1,4 +1,4 @@
-﻿using CoachHoopsAI.Api.Contracts;
+using CoachHoopsAI.Api.Contracts;
 using FluentValidation;
 
 namespace CoachHoopsAI.Api.Validators
@@ -10,7 +10,10 @@ namespace CoachHoopsAI.Api.Validators
             "EasyBasket", "Youth", "Amateur", "Pro"
         };
 
-        public AnalyzeGameRequestValidator(IValidator<TeamStatsDto> teamStatsValidator)
+        public AnalyzeGameRequestValidator(
+            IValidator<TeamStatsDto> teamStatsValidator,
+            IValidator<GameFormatDto> gameFormatValidator,
+            IValidator<GameTimingDto> gameTimingValidator)
         {
             RuleFor(x => x.Team)
                 .NotNull().WithMessage("'Team' must be provided.")
@@ -24,6 +27,44 @@ namespace CoachHoopsAI.Api.Validators
                 .DependentRules(() =>
                 {
                     RuleFor(x => x.Opponent!).SetValidator(teamStatsValidator);
+                });
+
+            RuleFor(x => x.GameFormat)
+                .NotNull().WithMessage("'GameFormat' must be provided.")
+                .DependentRules(() =>
+                {
+                    RuleFor(x => x.GameFormat!).SetValidator(gameFormatValidator);
+                });
+
+            RuleFor(x => x.GameTiming)
+                .NotNull().WithMessage("'GameTiming' must be provided.")
+                .DependentRules(() =>
+                {
+                    RuleFor(x => x.GameTiming!).SetValidator(gameTimingValidator);
+                });
+
+            // Cross-field: the clock can't show more time than the period it's in
+            // actually runs for. Needs GameFormat and GameTiming together, so it
+            // can't live on either DTO's own validator.
+            RuleFor(x => x)
+                .Custom((request, context) =>
+                {
+                    var format = request.GameFormat;
+                    var timing = request.GameTiming;
+                    if (format == null || timing == null)
+                        return;
+
+                    var isOvertime = timing.CurrentPeriod > format.RegulationPeriods;
+                    var applicablePeriodMinutes = isOvertime ? format.OvertimePeriodMinutes : format.RegulationPeriodMinutes;
+                    var maxSeconds = applicablePeriodMinutes * 60;
+
+                    if (timing.ClockRemainingSeconds > maxSeconds)
+                    {
+                        context.AddFailure(
+                            $"{nameof(request.GameTiming)}.{nameof(timing.ClockRemainingSeconds)}",
+                            $"ClockRemainingSeconds ({timing.ClockRemainingSeconds}) cannot exceed the " +
+                            $"{(isOvertime ? "overtime" : "regulation")} period length ({maxSeconds} seconds).");
+                    }
                 });
 
             RuleFor(x => x.Level)

@@ -57,14 +57,63 @@
         <InputTextArea @bind-value="request.Notes" class="form-control" rows="3" />
     </div>
 
+    <h3>Game Format</h3>
+    <p class="text-muted">The structure of this specific game. Independent of Level - e.g. a Youth game can be played 4x10 or 4x5.</p>
+    <div class="mb-3">
+        <label>Regulation Periods</label>
+        <InputNumber @bind-value="request.GameFormat.RegulationPeriods" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Regulation Period Length (minutes)</label>
+        <InputNumber @bind-value="request.GameFormat.RegulationPeriodMinutes" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Overtime Period Length (minutes)</label>
+        <InputNumber @bind-value="request.GameFormat.OvertimePeriodMinutes" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Format Name (optional)</label>
+        <InputText @bind-value="request.GameFormat.Name" class="form-control" placeholder="e.g. FIBA, NBA, EasyBasket 8x4" />
+    </div>
+
+    <h3>Game Timing</h3>
+    <div class="mb-3">
+        <label>Current Period (1..RegulationPeriods = regulation, beyond that = OT1, OT2, ...)</label>
+        <InputNumber @bind-value="request.GameTiming.CurrentPeriod" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Clock Remaining (seconds)</label>
+        <InputNumber @bind-value="request.GameTiming.ClockRemainingSeconds" class="form-control" />
+    </div>
+
     <h3>Team Stats</h3>
     <div class="mb-3">
         <label>Points</label>
         <InputNumber @bind-value="request.Team.Points" class="form-control" />
     </div>
     <div class="mb-3">
-        <label>3pt Attempts</label>
-        <InputNumber @bind-value="request.Team.ThreePointAttempts" class="form-control" />
+        <label>Field Goals Made</label>
+        <InputNumber @bind-value="request.Team.FieldGoalsMade" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Field Goals Attempted</label>
+        <InputNumber @bind-value="request.Team.FieldGoalsAttempted" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Three-Points Made</label>
+        <InputNumber @bind-value="request.Team.ThreePointsMade" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Three-Points Attempted</label>
+        <InputNumber @bind-value="request.Team.ThreePointsAttempted" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Free Throws Made</label>
+        <InputNumber @bind-value="request.Team.FreeThrowsMade" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Free Throws Attempted</label>
+        <InputNumber @bind-value="request.Team.FreeThrowsAttempted" class="form-control" />
     </div>
     <div class="mb-3">
         <label>Offensive Rebounds</label>
@@ -75,20 +124,24 @@
         <InputNumber @bind-value="request.Team.DefensiveRebounds" class="form-control" />
     </div>
     <div class="mb-3">
+        <label>Assists</label>
+        <InputNumber @bind-value="request.Team.Assists" class="form-control" />
+    </div>
+    <div class="mb-3">
         <label>Turnovers</label>
         <InputNumber @bind-value="request.Team.Turnovers" class="form-control" />
     </div>
     <div class="mb-3">
-        <label>Fouls</label>
-        <InputNumber @bind-value="request.Team.Fouls" class="form-control" />
+        <label>Steals</label>
+        <InputNumber @bind-value="request.Team.Steals" class="form-control" />
     </div>
     <div class="mb-3">
-        <label>Field Goal % (0-1)</label>
-        <InputNumber @bind-value="request.Team.FieldGoalPercentage" class="form-control" step="0.01" />
+        <label>Blocks</label>
+        <InputNumber @bind-value="request.Team.Blocks" class="form-control" />
     </div>
     <div class="mb-3">
-        <label>3pt % (0-1)</label>
-        <InputNumber @bind-value="request.Team.ThreePointPercentage" class="form-control" step="0.01" />
+        <label>Personal Fouls</label>
+        <InputNumber @bind-value="request.Team.PersonalFouls" class="form-control" />
     </div>
 
     <h3>Opponent Stats</h3>
@@ -97,8 +150,28 @@
         <InputNumber @bind-value="request.Opponent.Points" class="form-control" />
     </div>
     <div class="mb-3">
-        <label>3pt Attempts</label>
-        <InputNumber @bind-value="request.Opponent.ThreePointAttempts" class="form-control" />
+        <label>Field Goals Made</label>
+        <InputNumber @bind-value="request.Opponent.FieldGoalsMade" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Field Goals Attempted</label>
+        <InputNumber @bind-value="request.Opponent.FieldGoalsAttempted" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Three-Points Made</label>
+        <InputNumber @bind-value="request.Opponent.ThreePointsMade" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Three-Points Attempted</label>
+        <InputNumber @bind-value="request.Opponent.ThreePointsAttempted" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Free Throws Made</label>
+        <InputNumber @bind-value="request.Opponent.FreeThrowsMade" class="form-control" />
+    </div>
+    <div class="mb-3">
+        <label>Free Throws Attempted</label>
+        <InputNumber @bind-value="request.Opponent.FreeThrowsAttempted" class="form-control" />
     </div>
     <div class="mb-3">
         <label>Offensive Rebounds</label>
@@ -109,20 +182,24 @@
         <InputNumber @bind-value="request.Opponent.DefensiveRebounds" class="form-control" />
     </div>
     <div class="mb-3">
+        <label>Assists</label>
+        <InputNumber @bind-value="request.Opponent.Assists" class="form-control" />
+    </div>
+    <div class="mb-3">
         <label>Turnovers</label>
         <InputNumber @bind-value="request.Opponent.Turnovers" class="form-control" />
     </div>
     <div class="mb-3">
-        <label>Fouls</label>
-        <InputNumber @bind-value="request.Opponent.Fouls" class="form-control" />
+        <label>Steals</label>
+        <InputNumber @bind-value="request.Opponent.Steals" class="form-control" />
     </div>
     <div class="mb-3">
-        <label>Field Goal % (0-1)</label>
-        <InputNumber @bind-value="request.Opponent.FieldGoalPercentage" class="form-control" step="0.01" />
+        <label>Blocks</label>
+        <InputNumber @bind-value="request.Opponent.Blocks" class="form-control" />
     </div>
     <div class="mb-3">
-        <label>3pt % (0-1)</label>
-        <InputNumber @bind-value="request.Opponent.ThreePointPercentage" class="form-control" step="0.01" />
+        <label>Personal Fouls</label>
+        <InputNumber @bind-value="request.Opponent.PersonalFouls" class="form-control" />
     </div>
 
     <button class="btn btn-primary" type="submit" disabled="@isLoading">

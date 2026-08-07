@@ -1,25 +1,47 @@
 {
   "team": {
     "points": 89,
-    "fieldGoalPercentage": 0.47,
-    "threePointPercentage": 0.35,
-    "threePointAttempts": 24,
+    "fieldGoalsMade": 31,
+    "fieldGoalsAttempted": 65,
+    "threePointsMade": 8,
+    "threePointsAttempted": 24,
+    "freeThrowsMade": 16,
+    "freeThrowsAttempted": 21,
     "offensiveRebounds": 9,
     "defensiveRebounds": 23,
+    "assists": 19,
     "turnovers": 12,
-    "fouls": 16
+    "steals": 7,
+    "blocks": 4,
+    "personalFouls": 16
   },
   "opponent": {
     "points": 93,
-    "fieldGoalPercentage": 0.54,
-    "threePointPercentage": 0.32,
-    "threePointAttempts": 19,
+    "fieldGoalsMade": 35,
+    "fieldGoalsAttempted": 65,
+    "threePointsMade": 6,
+    "threePointsAttempted": 19,
+    "freeThrowsMade": 15,
+    "freeThrowsAttempted": 19,
     "offensiveRebounds": 10,
     "defensiveRebounds": 24,
+    "assists": 21,
     "turnovers": 11,
-    "fouls": 18
+    "steals": 5,
+    "blocks": 5,
+    "personalFouls": 18
   },
   "level": "Amateur",
+  "gameFormat": {
+    "regulationPeriods": 4,
+    "regulationPeriodMinutes": 10,
+    "overtimePeriodMinutes": 5,
+    "name": "FIBA"
+  },
+  "gameTiming": {
+    "currentPeriod": 4,
+    "clockRemainingSeconds": 0
+  },
   "notes": "They finished at the rim consistently and we struggled to protect the paint.",
   "gameDate": "2025-12-01T20:00:00",
   "teamName": "Central Bulls",

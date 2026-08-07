@@ -1,25 +1,47 @@
 {
   "team": {
     "points": 77,
-    "fieldGoalPercentage": 0.42,
-    "threePointPercentage": 0.29,
-    "threePointAttempts": 34,
+    "fieldGoalsMade": 27,
+    "fieldGoalsAttempted": 65,
+    "threePointsMade": 10,
+    "threePointsAttempted": 34,
+    "freeThrowsMade": 13,
+    "freeThrowsAttempted": 18,
     "offensiveRebounds": 10,
     "defensiveRebounds": 24,
+    "assists": 14,
     "turnovers": 12,
-    "fouls": 19
+    "steals": 6,
+    "blocks": 2,
+    "personalFouls": 19
   },
   "opponent": {
     "points": 83,
-    "fieldGoalPercentage": 0.45,
-    "threePointPercentage": 0.34,
-    "threePointAttempts": 24,
+    "fieldGoalsMade": 29,
+    "fieldGoalsAttempted": 65,
+    "threePointsMade": 8,
+    "threePointsAttempted": 24,
+    "freeThrowsMade": 14,
+    "freeThrowsAttempted": 19,
     "offensiveRebounds": 9,
     "defensiveRebounds": 25,
+    "assists": 17,
     "turnovers": 11,
-    "fouls": 18
+    "steals": 8,
+    "blocks": 3,
+    "personalFouls": 18
   },
   "level": "Amateur",
+  "gameFormat": {
+    "regulationPeriods": 4,
+    "regulationPeriodMinutes": 10,
+    "overtimePeriodMinutes": 5,
+    "name": "FIBA"
+  },
+  "gameTiming": {
+    "currentPeriod": 4,
+    "clockRemainingSeconds": 0
+  },
   "notes": "We took too many quick threes and didn't get into the paint early.",
   "gameDate": "2025-12-08T19:30:00",
   "teamName": "South City Jets",

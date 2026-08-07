@@ -60,7 +60,7 @@ else
                         <td>@(row.TeamName ?? "-")</td>
                         <td>@(row.OpponentName ?? "-")</td>
                         <td>@row.Level</td>
-                        <td>@row.AppliedRulesProfile</td>
+                        <td>@DisplayFormatting.HumanizeRulesProfileName(row.AppliedRulesProfile)</td>
                         <td>@(tags != null && tags.Length > 0 ? string.Join(", ", tags) : "-")</td>
                         <td>@(row.AiModel ?? "-")</td>
                         <td>

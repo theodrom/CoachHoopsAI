@@ -28,5 +28,12 @@ namespace CoachHoopsAI.Api.Contracts
         // V1.3: optional rules profile override
         // If null/empty -> use default profile for the given Level
         public string? RulesProfile { get; set; } = null;
+
+        // V1.4 (Milestone 1): the structure of this specific game and where it
+        // currently stands. Independent of Level - Level selects the analysis/rules
+        // profile (EasyBasket/Youth/Amateur/Pro), GameFormat describes the actual
+        // game being played (e.g. a Youth game can use a 4x10 or a 4x5 format).
+        public GameFormatDto? GameFormat { get; set; }
+        public GameTimingDto? GameTiming { get; set; }
     }
 }
