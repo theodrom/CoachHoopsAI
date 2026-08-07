@@ -1,18 +1,16 @@
-# V3.0 (Current)
+# V3.0
 
-- Adds Blazor Admin UI for browsing, searching, and viewing analyses, suggestions, and diagnostics
+- Adds Blazor Admin UI for browsing, searching, and viewing analyses, suggestions, diagnostics, and new top-level fields (Season, Location)
 - VS Code compound launch for API + Admin
 - All projects aligned to net10.0
 - Documentation and onboarding updated
-- Adds Blazor Admin UI for browsing, searching, and viewing analyses, suggestions, diagnostics, and new top-level fields (Season, Location)
 
 ## Features
 
 - Paginated, filterable analysis history
-- Analysis details: problem tags, suggestions, diagnostics, rules profile
+- Analysis details: problem tags, suggestions, diagnostics, rules profile, **season, location**
 - Responsive UI (Bootstrap)
 - API integration via AnalysisApiClient
-- Analysis details: problem tags, suggestions, diagnostics, rules profile, **season, location**
 
 ## Launching
 

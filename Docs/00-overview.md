@@ -11,7 +11,9 @@ The project is intentionally built in phases:
 - configurability of rules
 - AI integration
 - persistence
-- **Admin UI (Blazor) for browsing analyses and suggestions (V2.2)**
+- **Admin UI (Blazor) for browsing analyses and suggestions**
+- game format, game timing, and raw box-score statistics (replacing pre-computed shooting percentages)
+- automated testing (unit/integration test projects for Domain, Application, Infrastructure, and API)
 
 ## Admin UI
 
@@ -19,4 +21,4 @@ CoachHoopsAI.Admin is a Blazor Server project for browsing analysis history, sug
 
 V2.0 introduces real AI integration with structured, explainable outputs.
 
-Current version: **V3.0**
+See the root [README.md](../README.md) for the current product version.

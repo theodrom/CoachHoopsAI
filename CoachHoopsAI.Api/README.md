@@ -1,4 +1,4 @@
-﻿# CoachHoopsAI.Api (v3.0.1)
+﻿# CoachHoopsAI.Api
 
 ## Purpose
 
@@ -24,19 +24,20 @@ It handles request validation, mapping, and response formatting, acting as a cle
 
 Accepts:
 
-- Team and opponent statistics
+- Team and opponent statistics (raw box-score counts - made/attempted shooting, rebounds, assists, turnovers, steals, blocks, fouls; see `Docs/02-api-contracts.md`)
 - Competition level
+- **Game format and game timing (required)** - the structure of the game and where it currently stands
 - Optional game metadata (date, team names, competition, **season, location**)
 - Optional rules profile override
 
-Returns:
+Returns (`AnalyzeGameResponse`):
 
 - `AnalysisId` (Guid) of the persisted analysis record (V2.1)
 - Detected ProblemTags
 - Coaching suggestions grouped by category
-- Diagnostics explaining stat differences
-- Applied rules profile name
-- **Season and Location as top-level fields**
+- Diagnostics explaining stat differences, including the applied rules profile name (nested inside `Diagnostics`, not top-level)
+
+This response does not include Season or Location - those are metadata fields on the stored record, not fields the analysis endpoint echoes back.
 
 Every successful request is persisted via `IAnalysisHistoryService` before the response is returned.
 
@@ -46,31 +47,33 @@ Returns the full stored `AnalysisRecord` for the given id (input snapshot, probl
 
 Returns `404` if the id does not exist.
 
+**Known gap:** `AnalysisHistoryService` does not currently copy `Season`/`Location` from the request into the persisted record (only `GameDate`/`TeamName`/`OpponentName` are copied), and `AiModel` is always stored as an empty string. `Season`, `Location`, and `AiModel` exist on the schema and are readable here, but currently come back null/empty for every analysis regardless of what was submitted.
+
 ### GET /api/analyses  *(V2.1)*
 
 Paged search over historical analyses. Query parameters:
 
 | Name | Type | Notes |
 |------|------|-------|
-
 | `teamName` | string | optional filter |
 | `level` | string | optional filter (`EasyBasket`, `Youth`, `Amateur`, `Pro`) |
 | `tag` | string | optional ProblemTag filter |
 | `fromUtc` | DateTime | optional inclusive lower bound on `CreatedUtc` |
 | `toUtc` | DateTime | optional inclusive upper bound on `CreatedUtc` |
-| `season` | string | optional filter (new in V3.1) |
-| `location` | string | optional filter (new in V3.1) |
 | `page` | int | defaults to `1` |
 | `pageSize` | int | defaults to `20` |
 
-Returns a `PagedResult<AnalysisRecordListItem>` with **season** and **location** as top-level fields.
+`season` and `location` are **not** query filters. Each returned item does
+include **season**, **location**, `problemTagsJson`, and `aiModel` as fields -
+see the known persistence gap noted above for why `season`/`location`/`aiModel`
+currently come back null/empty.
 
 ---
 
 ## Validation
 
 - Manual FluentValidation invocation (v12+)
-- Nested validation for Team and Opponent stats
+- Nested validation for Team, Opponent, GameFormat, and GameTiming
 - Invalid requests return `ValidationProblemDetails`
 - Invalid requests never reach application logic
 

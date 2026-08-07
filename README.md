@@ -12,9 +12,11 @@ The current version (**V3.1.0**) includes:
 - structured, schema-validated AI output
 - diagnostics used as AI grounding
 - strong API validation and regression samples
-- **persistence of every analysis (input, diagnostics, tags, suggestions, season, location) to SQL Server as top-level columns**
+- **persistence of every analysis (input, diagnostics, tags, suggestions) to SQL Server as top-level columns** (note: `season`/`location`/`aiModel` columns exist but are not currently populated on write - see `Docs/02-api-contracts.md`)
 - **history retrieval and search endpoints**
 - **Blazor Admin UI for browsing analyses, suggestions, and diagnostics**
+- game format and game timing captured per analysis, alongside raw box-score inputs (made/attempted counts, not percentages)
+- automated unit and integration tests across the Domain, Application, Infrastructure, and API layers
 
 ---
 
@@ -57,8 +59,8 @@ See [CoachHoopsAI.Admin/README.md](CoachHoopsAI.Admin/README.md) for details.
 
 Input:
 
-- Team stats
-- Opponent stats
+- Team stats and opponent stats (raw box-score counts: made/attempted shooting, rebounds, assists, turnovers, steals, blocks, fouls)
+- Game format (regulation periods/length, overtime length) and game timing (current period, clock remaining) — both required
 - Competition level
 - Season (now a top-level field and column)
 - Location (now a top-level field and column)
@@ -105,13 +107,13 @@ Every analysis request is persisted as an immutable record.
 
 ## Samples
 
-The `/samples` folder contains regression JSON payloads for:
+`Docs/samples/` contains regression JSON payloads for:
 
 - common basketball scenarios
 - expanded rule coverage
 - validation failures
 
-These samples should be used to verify system behavior after any rule or AI change.
+See [Docs/samples/README.md](Docs/samples/README.md) for per-sample details. These samples should be used to verify system behavior after any rule or AI change.
 
 ---
 
@@ -120,3 +122,9 @@ These samples should be used to verify system behavior after any rule or AI chan
 - No authentication
 
 Authentication and user roles will be introduced in a future version.
+
+---
+
+## Documentation
+
+See [Docs/README.md](Docs/README.md) for the full documentation index.

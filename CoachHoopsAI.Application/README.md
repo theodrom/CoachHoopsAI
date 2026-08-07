@@ -1,4 +1,4 @@
-﻿# CoachHoopsAI.Application (v3.0.1)
+﻿# CoachHoopsAI.Application
 
 ## Purpose
 
@@ -25,7 +25,7 @@ It coordinates rule evaluation, diagnostics calculation, rules profile resolutio
 ### Services
 
 - GameAnalysisService
-- AnalysisHistoryService *(V2.1)* — runs analysis then persists an immutable `AnalysisRecord`, stamping `RulesetVersion` and `PromptVersion`
+- AnalysisHistoryService *(V2.1)* — runs analysis then persists an immutable `AnalysisRecord`, stamping `RulesetVersion` and `PromptVersion`. Known gap: does not currently copy `Season`/`Location` from the request metadata onto the record, and always stamps `AiModel` as an empty string (see `CoachHoopsAI.Persistence/README.md`)
 
 ### Rules
 
@@ -35,7 +35,7 @@ It coordinates rule evaluation, diagnostics calculation, rules profile resolutio
 
 ### Models
 
-- GameAnalysisInput
+- GameAnalysisInput - also carries `GameFormat`/`GameTiming` as pass-through facts (not yet consumed by rule evaluation, diagnostics, or the AI prompt)
 - GameAnalysisResult
 - GameDiagnostics
 - GameMetadata

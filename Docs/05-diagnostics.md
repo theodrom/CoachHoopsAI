@@ -16,6 +16,10 @@ Diagnostics explain *why* problem tags were triggered.
 - FoulsDiff
 - AppliedRulesProfile
 
+`TeamFieldGoalPercentage` and `OpponentFieldGoalPercentage` (and the shooting
+percentages diagnostics are diffed from) are computed from raw made/attempted
+counts at analysis time - they are not stored or submitted as percentages.
+
 ## Purpose
 
 Diagnostics are:

@@ -1,4 +1,4 @@
-﻿# CoachHoopsAI.Domain (v3.0.1)
+﻿# CoachHoopsAI.Domain
 
 ## Purpose
 
@@ -19,7 +19,8 @@ It defines the concepts, language, and deterministic rules used to analyze games
 
 ## Key Components
 
-- TeamStats
+- TeamStats (raw box-score counts, not percentages - see `Docs/03-domain-and-rules.md`)
+- GameFormat, GameTiming (a game's structure and current position; see `Docs/03-domain-and-rules.md`)
 - Suggestion
 
 ### Enums
@@ -33,6 +34,11 @@ It defines the concepts, language, and deterministic rules used to analyze games
 - IStatRulesEngine
 - StatRulesEngine
 - RulesProfile
+
+### Compatibility
+
+- LegacyPercentageBridge - temporary scaffolding computing shooting percentages
+  from raw counts for `StatRulesEngine`; see `Docs/03-domain-and-rules.md`
 
 ---
 

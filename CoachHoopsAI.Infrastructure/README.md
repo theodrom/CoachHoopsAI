@@ -1,4 +1,4 @@
-﻿# CoachHoopsAI.Infrastructure (v3.0.1)
+﻿# CoachHoopsAI.Infrastructure
 
 ## Purpose
 
@@ -13,7 +13,8 @@ It allows CoachHoopsAI to integrate with external systems without affecting core
 - Provides a real OpenAI-backed LLM client using the Responses API
 - Enforces structured outputs via JSON Schema
 - Uses diagnostics and rule signals as AI grounding
-- Includes a FakeSuggestionClient fallback for development and testing
+- Filters generated suggestions to prevent internal identifiers (ProblemTag names, rules-profile keys) from leaking into their text - see `Docs/08-ai-integration.md`
+- Includes a `FakeSuggestionClient` fallback (used when `Ai:Provider` isn't `OpenAI`) that always returns zero suggestions, so the system can run without a real API key
 
 ---
 
@@ -21,7 +22,6 @@ It allows CoachHoopsAI to integrate with external systems without affecting core
 
 - Implement AI clients
 - Integrate with external services
-- Host future persistence or messaging implementations
 
 ---
 

@@ -1,4 +1,4 @@
-# CoachHoopsAI.Admin (v3.1.0)
+# CoachHoopsAI.Admin
 
 ## Purpose
 
@@ -31,7 +31,8 @@ It allows users to:
 ## Key Features
 
 - **Analysis List**: Paginated, filterable list of all analyses
-- **Analysis Details**: View problem tags, suggestions, diagnostics, applied rules profile, **season, and location** for a single analysis
+- **Analysis Details**: View problem tags, suggestions, diagnostics, applied rules profile, **season, and location** for a single analysis; rules-profile names are reformatted for display (e.g. `Amateur_Default` shows as `Amateur (Default)`)
+- **New Analysis Form**: captures raw box-score stats (made/attempted counts, not percentages) for Team and Opponent, plus Game Format (regulation/overtime structure) and Game Timing (current period, clock remaining) - both required, alongside Level and the existing metadata fields
 - **API Integration**: Uses `IAnalysisApiClient` to call the backend
 - **Blazor Server**: Real-time UI updates, no client-side build required
 
