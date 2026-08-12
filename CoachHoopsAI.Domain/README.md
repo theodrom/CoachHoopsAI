@@ -40,6 +40,12 @@ It defines the concepts, language, and deterministic rules used to analyze games
 - LegacyPercentageBridge - temporary scaffolding computing shooting percentages
   from raw counts for `StatRulesEngine`; see `Docs/03-domain-and-rules.md`
 
+### Metrics
+
+- TeamCalculatedMetrics, CalculatedMetricsCalculator (Milestone 2A) - core
+  numerical metrics derived from a single `TeamStats`; no production consumer
+  yet, see `Docs/03-domain-and-rules.md`
+
 ---
 
 ## Design Philosophy

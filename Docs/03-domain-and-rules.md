@@ -47,6 +47,27 @@ the same way after the raw-stat change - it is scaffolding, not a
 general-purpose calculated-metrics layer, and is expected to be removed once
 the rules engine is redesigned to work from raw counts directly.
 
+## Calculated Metrics (Milestone 2A)
+
+`CoachHoopsAI.Domain.Metrics.CalculatedMetricsCalculator.Calculate(TeamStats)`
+produces a `TeamCalculatedMetrics` record: field-goal/three-point/free-throw
+percentage, total rebounds, effective field-goal percentage, assist-to-turnover
+ratio, three-point attempt rate, and free-throw rate. This is a purely
+numerical layer - facts derived from a single team's raw counts, with no
+thresholds, judgments, opponent dependence, or `GameFormat`/`GameTiming`
+dependence. Ratios are normalized decimals (`0.425`, not `42.5`), never
+rounded or clamped internally; assist-to-turnover ratio is `null` (not `0`)
+when turnovers are zero, since a zero-turnover performance has no meaningful
+ratio.
+
+This is a separate concept from `LegacyPercentageBridge` above: the bridge is
+temporary scaffolding for the existing rules engine's two percentages, while
+`TeamCalculatedMetrics` is the new general-purpose calculated-metrics layer
+planned for Milestone 2. As of M2A it has no production consumer - it is not
+yet wired into the rules engine, diagnostics, the LLM prompt, Admin,
+persistence, or API responses. That integration, along with
+possession/opponent-dependent metrics, is later Milestone 2 work.
+
 ## Philosophy
 
 Rules represent �coach-agreeable� heuristics, not absolute truth.

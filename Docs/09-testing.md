@@ -4,7 +4,7 @@
 
 | Project | Tests what | Boundary |
 |---|---|---|
-| `CoachHoopsAI.Domain.Tests` | `StatRulesEngine` rules and boundaries, `GameFormat`/`GameTiming` | Unit - pure domain logic, no fakes needed |
+| `CoachHoopsAI.Domain.Tests` | `StatRulesEngine` rules and boundaries, `GameFormat`/`GameTiming`, `CalculatedMetricsCalculator` | Unit - pure domain logic, no fakes needed |
 | `CoachHoopsAI.Application.Tests` | `GameAnalysisService` orchestration, `GameDiagnosticsCalculator` | Unit - rules engine, LLM client, and profile provider replaced with hand-written fakes |
 | `CoachHoopsAI.Api.Tests` | Request/response mapping (`AnalyzeGameMappings`) and FluentValidation validators | Unit - validators and mappings called directly; no HTTP server, no controllers exercised |
 | `CoachHoopsAI.Infrastructure.Tests` | The internal-identifier leak filter in `OpenAiSuggestionClientHttp` | Boundary - exercises the real client's public method against a fake `HttpMessageHandler`; **does not call the real OpenAI API** |
@@ -13,7 +13,7 @@ Each project's own README documents what it currently covers in more detail.
 
 ## Current total
 
-119 tests across the four projects (36 + 7 + 68 + 8), all passing as of this
+136 tests across the four projects (45 + 14 + 9 + 68), all passing as of this
 writing. This number will drift as tests are added - treat it as a snapshot,
 not a target.
 
