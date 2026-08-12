@@ -1,4 +1,5 @@
 using CoachHoopsAI.Domain.Entities;
+using CoachHoopsAI.Domain.GameContext;
 using CoachHoopsAI.Domain.Metrics;
 
 namespace CoachHoopsAI.Domain.Tests.Metrics;
@@ -8,6 +9,8 @@ namespace CoachHoopsAI.Domain.Tests.Metrics;
 // for each side's single-team metrics; this file does not re-test M2A's own
 // zero-denominator edge cases (CalculatedMetricsCalculatorTests already covers
 // those) - only that the game calculator carries them through unchanged.
+//
+// Milestone 2C (below): Estimated Pace, via the GameFormat/GameTiming-aware overload.
 public class GameCalculatedMetricsCalculatorTests
 {
     // FGA=70, OREB=10, TO=15, FTA=20 -> Possessions = 70 - 10 + 15 + 0.44*20 = 83.8
@@ -192,5 +195,165 @@ public class GameCalculatedMetricsCalculatorTests
         Assert.Equal(expectedOpponentM2A.AssistToTurnoverRatio, metrics.Opponent.AssistToTurnoverRatio);
         Assert.Equal(expectedOpponentM2A.ThreePointAttemptRate, metrics.Opponent.ThreePointAttemptRate);
         Assert.Equal(expectedOpponentM2A.FreeThrowRate, metrics.Opponent.FreeThrowRate);
+    }
+
+    private static readonly GameFormat FourByTen = new()
+    {
+        RegulationPeriods = 4,
+        RegulationPeriodMinutes = 10,
+        OvertimePeriodMinutes = 5
+    };
+
+    private static readonly GameFormat FourByTwelve = new()
+    {
+        RegulationPeriods = 4,
+        RegulationPeriodMinutes = 12,
+        OvertimePeriodMinutes = 5
+    };
+
+    // EasyBasket-style, non-NBA/FIBA shape - proves the calculation reads GameFormat
+    // generically rather than assuming 40 or 48 regulation minutes.
+    private static readonly GameFormat EightByFour = new()
+    {
+        RegulationPeriods = 8,
+        RegulationPeriodMinutes = 4,
+        OvertimePeriodMinutes = 4
+    };
+
+    private static double ExpectedGameEstimatedPossessions(TeamStats team, TeamStats opponent)
+    {
+        var teamPossessions = team.FieldGoalsAttempted - team.OffensiveRebounds + team.Turnovers + 0.44 * team.FreeThrowsAttempted;
+        var opponentPossessions = opponent.FieldGoalsAttempted - opponent.OffensiveRebounds + opponent.Turnovers + 0.44 * opponent.FreeThrowsAttempted;
+        return (teamPossessions + opponentPossessions) / 2.0;
+    }
+
+    [Fact]
+    public void Calculate_Pace_Representative4x10_MatchesFormula()
+    {
+        var team = Team();
+        var opponent = Opponent();
+        // Period 3, 4:00 remaining of a 10-minute period -> 2 completed periods (20)
+        // + (10 - 4) elapsed in period 3 = 26 minutes elapsed.
+        var timing = new GameTiming { CurrentPeriod = 3, ClockRemaining = TimeSpan.FromMinutes(4) };
+
+        var expectedGamePossessions = ExpectedGameEstimatedPossessions(team, opponent);
+        var expectedElapsedMinutes = timing.ElapsedGameTime(FourByTen).TotalMinutes;
+        // GameEstimatedPossessions x RegulationDurationMinutes / ElapsedGameTimeMinutes.
+        // 26 does not divide evenly, so this is also a no-internal-rounding case.
+        var expectedPace = expectedGamePossessions * FourByTen.RegulationDuration.TotalMinutes / expectedElapsedMinutes;
+
+        var metrics = GameCalculatedMetricsCalculator.Calculate(team, opponent, FourByTen, timing);
+
+        Assert.Equal(26.0, expectedElapsedMinutes, precision: 10);
+        Assert.Equal(expectedGamePossessions, metrics.GameEstimatedPossessions, precision: 10);
+        Assert.Equal(expectedPace, metrics.EstimatedPace!.Value, precision: 10);
+    }
+
+    [Fact]
+    public void Calculate_Pace_4x12Format_NormalizesAgainst48RegulationMinutes_NotHardcoded40()
+    {
+        var team = Team();
+        var opponent = Opponent();
+        // Period 2, 5:00 remaining of a 12-minute period -> 1 completed period (12)
+        // + (12 - 5) elapsed in period 2 = 19 minutes elapsed.
+        var timing = new GameTiming { CurrentPeriod = 2, ClockRemaining = TimeSpan.FromMinutes(5) };
+
+        var expectedGamePossessions = ExpectedGameEstimatedPossessions(team, opponent);
+        var expectedElapsedMinutes = timing.ElapsedGameTime(FourByTwelve).TotalMinutes;
+        var expectedPace = expectedGamePossessions * FourByTwelve.RegulationDuration.TotalMinutes / expectedElapsedMinutes;
+
+        var metrics = GameCalculatedMetricsCalculator.Calculate(team, opponent, FourByTwelve, timing);
+
+        Assert.Equal(48.0, FourByTwelve.RegulationDuration.TotalMinutes);
+        Assert.Equal(19.0, expectedElapsedMinutes, precision: 10);
+        Assert.Equal(expectedPace, metrics.EstimatedPace!.Value, precision: 10);
+    }
+
+    [Fact]
+    public void Calculate_Pace_NonStandard8x4Format_UsesGameFormatGenerically()
+    {
+        var team = Team();
+        var opponent = Opponent();
+        // Period 6, 3:00 remaining of a 4-minute period -> 5 completed periods (20)
+        // + (4 - 3) elapsed in period 6 = 21 minutes elapsed. Matches
+        // GameTimingTests.EasyBasketStyleFormat_8x4_ElapsedGameTimeIsCorrect.
+        var timing = new GameTiming { CurrentPeriod = 6, ClockRemaining = TimeSpan.FromMinutes(3) };
+
+        var expectedGamePossessions = ExpectedGameEstimatedPossessions(team, opponent);
+        var expectedElapsedMinutes = timing.ElapsedGameTime(EightByFour).TotalMinutes;
+        var expectedPace = expectedGamePossessions * EightByFour.RegulationDuration.TotalMinutes / expectedElapsedMinutes;
+
+        var metrics = GameCalculatedMetricsCalculator.Calculate(team, opponent, EightByFour, timing);
+
+        Assert.Equal(32.0, EightByFour.RegulationDuration.TotalMinutes);
+        Assert.Equal(21.0, expectedElapsedMinutes, precision: 10);
+        Assert.Equal(expectedPace, metrics.EstimatedPace!.Value, precision: 10);
+    }
+
+    [Fact]
+    public void Calculate_Pace_ExactGameStart_ReturnsNull_ButGameEstimatedPossessionsStillReflectsStats()
+    {
+        var team = Team();
+        var opponent = Opponent();
+        var timing = new GameTiming { CurrentPeriod = 1, ClockRemaining = TimeSpan.FromMinutes(FourByTen.RegulationPeriodMinutes) };
+
+        Assert.Equal(TimeSpan.Zero, timing.ElapsedGameTime(FourByTen));
+
+        var metrics = GameCalculatedMetricsCalculator.Calculate(team, opponent, FourByTen, timing);
+
+        Assert.Null(metrics.EstimatedPace);
+        Assert.Equal(ExpectedGameEstimatedPossessions(team, opponent), metrics.GameEstimatedPossessions, precision: 10);
+    }
+
+    [Fact]
+    public void Calculate_Pace_Overtime_ElapsedIncludesOT_ButNormalizationStaysAtRegulationDuration()
+    {
+        var team = Team();
+        var opponent = Opponent();
+        // Period 5 = OT1 for a 4-period format. 2:00 remaining of a 5-minute OT period
+        // -> ElapsedGameTime = 40 (regulation) + (5 - 2) = 43 minutes.
+        var timing = new GameTiming { CurrentPeriod = 5, ClockRemaining = TimeSpan.FromMinutes(2) };
+
+        Assert.True(timing.IsOvertime(FourByTen));
+        var expectedElapsedMinutes = timing.ElapsedGameTime(FourByTen).TotalMinutes;
+        Assert.Equal(43.0, expectedElapsedMinutes, precision: 10);
+
+        var expectedGamePossessions = ExpectedGameEstimatedPossessions(team, opponent);
+        // Normalizes against the 40-minute regulation duration, not 45 (regulation + OT1).
+        var expectedPace = expectedGamePossessions * FourByTen.RegulationDuration.TotalMinutes / expectedElapsedMinutes;
+
+        var metrics = GameCalculatedMetricsCalculator.Calculate(team, opponent, FourByTen, timing);
+
+        Assert.Equal(expectedPace, metrics.EstimatedPace!.Value, precision: 10);
+    }
+
+    [Fact]
+    public void Calculate_Pace_TeamAndOpponentSwapped_GameLevelValuesUnchanged()
+    {
+        var team = Team();
+        var opponent = Opponent();
+        var timing = new GameTiming { CurrentPeriod = 3, ClockRemaining = TimeSpan.FromMinutes(4) };
+
+        var straight = GameCalculatedMetricsCalculator.Calculate(team, opponent, FourByTen, timing);
+        var swapped = GameCalculatedMetricsCalculator.Calculate(opponent, team, FourByTen, timing);
+
+        Assert.Equal(straight.GameEstimatedPossessions, swapped.GameEstimatedPossessions);
+        Assert.Equal(straight.EstimatedPace!.Value, swapped.EstimatedPace!.Value, precision: 10);
+    }
+
+    [Fact]
+    public void Calculate_PaceAwareOverload_PreservesM2AAndM2BMetrics_FromTwoArgOverload()
+    {
+        var team = Team();
+        var opponent = Opponent();
+        var timing = new GameTiming { CurrentPeriod = 3, ClockRemaining = TimeSpan.FromMinutes(4) };
+
+        var withoutTiming = GameCalculatedMetricsCalculator.Calculate(team, opponent);
+        var withTiming = GameCalculatedMetricsCalculator.Calculate(team, opponent, FourByTen, timing);
+
+        Assert.Null(withoutTiming.EstimatedPace);
+        Assert.Equal(withoutTiming.Team, withTiming.Team);
+        Assert.Equal(withoutTiming.Opponent, withTiming.Opponent);
+        Assert.Equal(withoutTiming.GameEstimatedPossessions, withTiming.GameEstimatedPossessions, precision: 10);
     }
 }
