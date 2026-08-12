@@ -13,7 +13,7 @@ Each project's own README documents what it currently covers in more detail.
 
 ## Current total
 
-143 tests across the four projects (52 + 14 + 9 + 68), all passing as of this
+150 tests across the four projects (59 + 14 + 9 + 68), all passing as of this
 writing. This number will drift as tests are added - treat it as a snapshot,
 not a target.
 

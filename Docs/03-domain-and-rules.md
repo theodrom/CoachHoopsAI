@@ -59,9 +59,11 @@ documents what M2 *calculates*, not what any of it *means*.
 This is a separate concept from `LegacyPercentageBridge` above: the bridge is
 temporary scaffolding for the existing rules engine's two percentages, while
 `TeamCalculatedMetrics`/`GameCalculatedMetrics` are the new general-purpose
-calculated-metrics layer. As of M2B this layer has no production consumer - it
-is not yet wired into the rules engine, diagnostics, the LLM prompt, Admin,
-persistence, or API responses.
+calculated-metrics layer. As of M2C (M2A + M2B + M2C - the full currently
+planned numerical layer) this has no production consumer - it is not yet
+wired into the rules engine, diagnostics, the LLM prompt, Admin, persistence,
+or API responses. Interpreting any of these numbers (is this pace good, is
+this rebound rate a problem) is explicit M3 scope and is not implemented yet.
 
 ### M2A - single-team metrics
 
@@ -123,6 +125,60 @@ defaults, and CoachHoopsAI's is the possession-based one above. Foul Rate is a
 practical current default, not a claim of one canonical basketball
 definition. `EstimatedPossessions` stays a `double` throughout - it is never
 projected to an integer.
+
+### M2C - live estimated pace
+
+Pace is a **descriptive tempo measurement, not a judgment** - it says nothing
+about whether the observed tempo is good, bad, desirable, or under control.
+Whether a given pace matters is level/profile/strategy-dependent interpretation
+and belongs to a later milestone (M3+), not to M2.
+
+`GameCalculatedMetricsCalculator.Calculate(TeamStats team, TeamStats opponent,
+GameFormat format, GameTiming timing)` extends M2B with two game-level (not
+per-side) values on `GameCalculatedMetrics`:
+
+```text
+GameEstimatedPossessions = (Team.EstimatedPossessions + Opponent.EstimatedPossessions) / 2
+
+EstimatedPace = GameEstimatedPossessions * GameFormat.RegulationDuration.TotalMinutes
+                / GameTiming.ElapsedGameTime(format).TotalMinutes
+```
+
+`GameEstimatedPossessions` averages the two sides' independent M2B possession
+estimates into a single game-level tempo input, to reduce the approximation
+discrepancy between the two estimates rather than treating either side as
+authoritative. It does not replace or remove `Team.EstimatedPossessions` /
+`Opponent.EstimatedPossessions`, which remain the per-side M2B values.
+
+`ElapsedGameTime` is the existing Milestone 1 `GameTiming.ElapsedGameTime(format)`; the pace calculation does not reimplement any clock arithmetic.
+
+**Overtime**: `ElapsedGameTime` already includes elapsed overtime time once a
+game reaches OT. Estimated Pace still normalizes against `RegulationDuration`
+(e.g. 40 minutes for a 4x10 format) - it does not extend the normalization
+length by scheduled or elapsed overtime. During overtime, the metric therefore
+answers "at this observed tempo, how many possessions would a regulation-length
+game have," not "how many possessions has this game had so far." There is no
+separate "overtime pace."
+
+**Zero elapsed time**: `EstimatedPace` is `null` (never `0`, `NaN`, or
+infinity) when `ElapsedGameTime(format) == 0` - at tip-off there is no elapsed
+time from which a tempo can be estimated, and a pace of `0` would misread as
+an observed dead-stop tempo rather than "no sample yet." This does not affect
+`GameEstimatedPossessions`, which depends only on the supplied `TeamStats` and
+is always computable.
+
+`GameEstimatedPossessions` and `EstimatedPace` are symmetric under swapping
+Team and Opponent - both are game-level values, not per-side ones, so
+swapping the two `TeamStats` arguments leaves them unchanged.
+
+The two-argument `Calculate(team, opponent)` overload from M2B is unchanged
+and keeps working exactly as before; it simply cannot produce `EstimatedPace`
+(always `null` on that path) since it is never given a `GameFormat`/
+`GameTiming` - no dummy timing is substituted to force a value.
+
+M2C completes the currently planned Milestone 2 numerical layer (M2A + M2B +
+M2C). No further calculated-metrics slices are currently planned; the next
+Milestone 2 area (`Docs/README.md` roadmap) is interpretation (M3).
 
 ## Philosophy
 

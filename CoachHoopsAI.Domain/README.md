@@ -46,11 +46,14 @@ It defines the concepts, language, and deterministic rules used to analyze games
   M2B possession/opponent-dependent fields); see `Docs/03-domain-and-rules.md`
 - CalculatedMetricsCalculator (Milestone 2A) - core numerical metrics derived
   from a single `TeamStats`
-- GameCalculatedMetrics, GameCalculatedMetricsCalculator (Milestone 2B) -
-  possession estimates and opponent-dependent metrics for a Team/Opponent
-  `TeamStats` pair, calculated symmetrically; reuses
+- GameCalculatedMetrics - Team + Opponent (`TeamCalculatedMetrics`) plus the
+  M2C game-level `GameEstimatedPossessions`/`EstimatedPace`
+- GameCalculatedMetricsCalculator (Milestone 2B + 2C) - possession estimates
+  and opponent-dependent metrics for a Team/Opponent `TeamStats` pair,
+  calculated symmetrically; an additional overload also taking
+  `GameFormat`/`GameTiming` adds live estimated pace. Reuses
   CalculatedMetricsCalculator rather than duplicating it
-- No production consumer yet for either M2A or M2B
+- No production consumer yet for M2A, M2B, or M2C
 
 ---
 
