@@ -47,26 +47,82 @@ the same way after the raw-stat change - it is scaffolding, not a
 general-purpose calculated-metrics layer, and is expected to be removed once
 the rules engine is redesigned to work from raw counts directly.
 
-## Calculated Metrics (Milestone 2A)
+## Calculated Metrics (Milestone 2)
 
-`CoachHoopsAI.Domain.Metrics.CalculatedMetricsCalculator.Calculate(TeamStats)`
-produces a `TeamCalculatedMetrics` record: field-goal/three-point/free-throw
-percentage, total rebounds, effective field-goal percentage, assist-to-turnover
-ratio, three-point attempt rate, and free-throw rate. This is a purely
-numerical layer - facts derived from a single team's raw counts, with no
-thresholds, judgments, opponent dependence, or `GameFormat`/`GameTiming`
-dependence. Ratios are normalized decimals (`0.425`, not `42.5`), never
-rounded or clamped internally; assist-to-turnover ratio is `null` (not `0`)
-when turnovers are zero, since a zero-turnover performance has no meaningful
-ratio.
+Calculated metrics are a purely numerical layer - facts derived from raw
+counts, with no thresholds, judgments, or presentation formatting. Ratios are
+normalized decimals (`0.425`, not `42.5`), never rounded or clamped
+internally. Formulas below are current defaults and are expected to evolve as
+later milestones (M3+) add interpretation on top of them - this section
+documents what M2 *calculates*, not what any of it *means*.
 
 This is a separate concept from `LegacyPercentageBridge` above: the bridge is
 temporary scaffolding for the existing rules engine's two percentages, while
-`TeamCalculatedMetrics` is the new general-purpose calculated-metrics layer
-planned for Milestone 2. As of M2A it has no production consumer - it is not
-yet wired into the rules engine, diagnostics, the LLM prompt, Admin,
-persistence, or API responses. That integration, along with
-possession/opponent-dependent metrics, is later Milestone 2 work.
+`TeamCalculatedMetrics`/`GameCalculatedMetrics` are the new general-purpose
+calculated-metrics layer. As of M2B this layer has no production consumer - it
+is not yet wired into the rules engine, diagnostics, the LLM prompt, Admin,
+persistence, or API responses.
+
+### M2A - single-team metrics
+
+`CalculatedMetricsCalculator.Calculate(TeamStats)` produces a
+`TeamCalculatedMetrics` record from **one side's raw counts alone** - no
+opponent, no `GameFormat`/`GameTiming`:
+
+| Metric | Formula | Zero-denominator result |
+|---|---|---|
+| Field Goal % | `FGM / FGA` | `0.0` when `FGA == 0` |
+| Three-Point % | `3PM / 3PA` | `0.0` when `3PA == 0` |
+| Free-Throw % | `FTM / FTA` | `0.0` when `FTA == 0` |
+| Total Rebounds | `OREB + DREB` | n/a |
+| Effective FG % | `(FGM + 0.5 * 3PM) / FGA` | `0.0` when `FGA == 0` |
+| Assist-to-Turnover Ratio | `AST / TO` | **`null`** when `TO == 0` |
+| Three-Point Attempt Rate | `3PA / FGA` | `0.0` when `FGA == 0` |
+| Free-Throw Rate | `FTA / FGA` | `0.0` when `FGA == 0` |
+
+Assist-to-turnover is `null`, not `0`, because a zero-turnover performance has
+no meaningful ratio - forcing it to zero would read as "turns the ball over
+constantly," the opposite of what happened.
+
+### M2B - possession- and opponent-dependent metrics
+
+`GameCalculatedMetricsCalculator.Calculate(TeamStats team, TeamStats opponent)`
+produces a `GameCalculatedMetrics` record (`Team` + `Opponent`, both
+`TeamCalculatedMetrics`). It reuses `CalculatedMetricsCalculator` for each
+side's M2A fields, then enriches both sides with the metrics below - it does
+not re-derive the M2A formulas.
+
+**Team and Opponent are calculated symmetrically.** Neither side is
+analytically privileged: `Calculate(team, opponent).Team` is equivalent to
+`Calculate(opponent, team).Opponent`, and vice versa. This matters because a
+later milestone may apply different rule profiles per side.
+
+Estimated possessions (per side, independently - this milestone does not
+average the two sides into one game-possession value):
+
+```text
+EstimatedPossessions = FGA - OREB + TO + 0.44 * FTA
+```
+
+Remaining metrics, all `null` when the named denominator is zero (never forced
+to `0` - a metric that divides by zero possessions or zero rebound
+opportunities is not meaningfully observable, not literally zero):
+
+| Metric | Formula | `null` when |
+|---|---|---|
+| Offensive Rating | `100 * Points / EstimatedPossessions` (own side) | own `EstimatedPossessions == 0` |
+| Turnover Rate | `Turnovers / EstimatedPossessions` (own side) | own `EstimatedPossessions == 0` |
+| Offensive Rebound % | `OREB / (OREB + Opponent DREB)` | `OREB + Opponent DREB == 0` |
+| Defensive Rebound % | `DREB / (DREB + Opponent OREB)` | `DREB + Opponent OREB == 0` |
+| Steal Rate | `Steals / Opponent EstimatedPossessions` | opponent's `EstimatedPossessions == 0` |
+| Foul Rate | `PersonalFouls / Opponent EstimatedPossessions` | opponent's `EstimatedPossessions == 0` |
+
+Turnover Rate intentionally uses `Turnovers / EstimatedPossessions`, not the
+alternative `TO / (FGA + 0.44 * FTA + TO)` - the two are different current
+defaults, and CoachHoopsAI's is the possession-based one above. Foul Rate is a
+practical current default, not a claim of one canonical basketball
+definition. `EstimatedPossessions` stays a `double` throughout - it is never
+projected to an integer.
 
 ## Philosophy
 

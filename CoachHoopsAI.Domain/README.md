@@ -42,9 +42,15 @@ It defines the concepts, language, and deterministic rules used to analyze games
 
 ### Metrics
 
-- TeamCalculatedMetrics, CalculatedMetricsCalculator (Milestone 2A) - core
-  numerical metrics derived from a single `TeamStats`; no production consumer
-  yet, see `Docs/03-domain-and-rules.md`
+- TeamCalculatedMetrics - per-side metrics model (M2A single-team fields plus
+  M2B possession/opponent-dependent fields); see `Docs/03-domain-and-rules.md`
+- CalculatedMetricsCalculator (Milestone 2A) - core numerical metrics derived
+  from a single `TeamStats`
+- GameCalculatedMetrics, GameCalculatedMetricsCalculator (Milestone 2B) -
+  possession estimates and opponent-dependent metrics for a Team/Opponent
+  `TeamStats` pair, calculated symmetrically; reuses
+  CalculatedMetricsCalculator rather than duplicating it
+- No production consumer yet for either M2A or M2B
 
 ---
 
