@@ -13,8 +13,8 @@ Repository-specific instructions for AI-assisted development on CoachHoopsAI.
   M2B possession/cross-team metrics, M2C live estimated pace) is complete on
   `main`. Not yet tagged.
 - Verified 2026-09-18: `dotnet build CoachHoopsAI.sln` succeeds with no
-  errors; `dotnet test CoachHoopsAI.sln` passes 159 tests, 0 failed
-  (68 + 14 + 9 + 68 across the four test projects below). Treat this as a
+  errors; `dotnet test CoachHoopsAI.sln` passes 166 tests, 0 failed
+  (75 + 14 + 9 + 68 across the four test projects below). Treat this as a
   dated snapshot, not a permanent expected count - re-run rather than
   trusting this number as it ages.
 - Four test projects, no mocking framework, hand-written fakes only:
@@ -103,10 +103,11 @@ facts derived from raw stats, never rounded internally, never folded into
   original two-argument overload is unchanged and simply cannot produce
   `EstimatedPace` (no dummy timing is substituted to force a value).
 - Full formulas and null-semantics tables: `Docs/03-domain-and-rules.md`.
-- The first M3 rule (`LowEffectiveFieldGoalPercentage`, see below) now reads
-  M2A's `EffectiveFieldGoalPercentage` directly. Everything else in M2A/B/C
-  is still not wired into diagnostics, the LLM prompt, Admin, persistence, or
-  API responses - the rest of that integration is later M3 work.
+- Two M3 rules (`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`; see
+  below) now read M2A's `EffectiveFieldGoalPercentage`/`FreeThrowRate`
+  directly. Everything else in M2A/B/C is still not wired into diagnostics,
+  the LLM prompt, Admin, persistence, or API responses - the rest of that
+  integration is later M3 work.
 
 ## Compatibility boundary - do not disturb without a milestone decision
 
@@ -122,9 +123,10 @@ facts derived from raw stats, never rounded internally, never folded into
 - The M2 calculated-metrics layer (`TeamCalculatedMetrics`/
   `GameCalculatedMetrics`) exists alongside `LegacyPercentageBridge`, not in
   place of it. `StatRulesEngine` still reads the bridge's two ratios for its
-  original (M1) rules; one new M3 rule (`LowEffectiveFieldGoalPercentage`)
-  additionally reads `CalculatedMetricsCalculator`'s eFG% - that is the only
-  rule migrated off the bridge so far, not a signal to migrate the rest yet.
+  original (M1) rules; two M3 rules (`LowEffectiveFieldGoalPercentage`,
+  `LowFreeThrowRate`) additionally read `CalculatedMetricsCalculator` directly
+  - those are the only rules migrated off the bridge so far, not a signal to
+  migrate the rest yet.
 - `GameFormat`/`GameTiming` are captured and persisted but are **intentionally
   not yet consumed** by the rules engine, diagnostics, or the LLM prompt.
 
@@ -133,18 +135,37 @@ facts derived from raw stats, never rounded internally, never folded into
 - **M2** - calculated numerical basketball metrics (facts derived from raw
   stats). Complete: M2A, M2B, M2C.
 - **M3 (in progress)** - interpretation/findings/rules grounded in M2's
-  calculated metrics. Judgments and thresholds belong here, not M2. First
-  slice landed: `LowEffectiveFieldGoalPercentage`.
+  calculated metrics. Judgments and thresholds belong here, not M2. Slices
+  landed: `LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate` (replaces
+  `LackOfPaintPressure`'s trigger).
 - **M4** - sessions/snapshots.
 - **M5** - LLM/Admin integration built on the above.
 
 ## Next steps (M3)
 
-First slice complete: `LowEffectiveFieldGoalPercentage` (`StatRulesEngine`)
-flags a low team effective field-goal % (M2A), gated on a minimum
-field-goal-attempts sample size so a small/zero sample can't read as
-"inefficient." See `Docs/03-domain-and-rules.md`'s "Findings (Milestone 3)"
-section for the full reuse-vs-new-tag reasoning and threshold rationale.
+Two slices complete, both in `Docs/03-domain-and-rules.md`'s "Findings
+(Milestone 3)" section for full rationale:
+
+- `LowEffectiveFieldGoalPercentage` (`StatRulesEngine`) flags a low team
+  effective field-goal % (M2A), gated on a minimum field-goal-attempts sample
+  size so a small/zero sample can't read as "inefficient."
+- `LowFreeThrowRate` replaces `LackOfPaintPressure`'s trigger. `PointsInPaint`
+  does not exist anywhere in this codebase - `TeamStats` has no shot-location
+  data, for either a final or a live analysis - so no rule infers paint
+  scoring from points alone. `LackOfPaintPressure`'s old trigger (personal
+  fouls far below the opponent's, while not leading on score) had no
+  defensible connection to interior/rim pressure; `StatRulesEngine` no longer
+  triggers it, but the enum member and its Admin display mapping are kept for
+  already-persisted records. `LowFreeThrowRate` (M2A `FreeThrowRate`,
+  FTA/FGA, with the same kind of minimum-attempts gate) is a purely literal
+  finding - few free-throw attempts relative to field-goal attempts - and
+  makes no claim about interior aggression or paint pressure: free throws
+  arise from several situations besides paint drives, and real paint attacks
+  often draw no whistle at all, so the rate cannot stand in for paint
+  activity. It was appended as a new tag rather than reusing the old ordinal,
+  so the same `ProblemTag` value never means two different things across a
+  database's history. `AnalysisHistoryService.RulesetVersion` was bumped
+  (`1.2` -> `1.3`) to mark the change.
 
 **`ProblemTag` additions must always be appended, never inserted.**
 `AnalysisRecord.ProblemTagsJson` persists tags as a raw integer array
@@ -162,15 +183,14 @@ metrics (`TeamCalculatedMetrics`/`GameCalculatedMetrics`), not on the legacy
 
 Before adding new findings, review the existing `ProblemTag` set
 (`CoachHoopsAI.Domain.Enums`) against what the current box-score model can
-actually establish. Several existing tags already claim causes the raw stats
+actually establish. Several remaining tags still claim causes the raw stats
 don't fully support - `RulesProfile` itself already labels some of the
 thresholds behind them as proxies (e.g. the fields behind
-`InteriorDefenseProblem` and `TransitionDefenseProblem`); `LackOfPaintPressure`
-has a similar gap, since `TeamStats` has no shot-location data. In
-particular: **`EstimatedPace` (M2C) measures tempo, but does not by itself
-establish `PaceControlProblem`** - turning a tempo number into a "pace is a
-problem" judgment needs a threshold/interpretation layer on top, which is M3
-scope, not something M2 already did.
+`InteriorDefenseProblem` and `TransitionDefenseProblem`). In particular:
+**`EstimatedPace` (M2C) measures tempo, but does not by itself establish
+`PaceControlProblem`** - turning a tempo number into a "pace is a problem"
+judgment needs a threshold/interpretation layer on top, which is M3 scope,
+not something M2 already did.
 
 Two input edge cases surfaced during the M2 review are open questions, not
 confirmed defects or completed fixes - worth a decision before M3 relies on

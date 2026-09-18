@@ -252,6 +252,92 @@ doesn't shift the ordinals - and therefore the meaning - of tags already
 present in persisted analysis records. Any future `ProblemTag` addition must
 do the same.
 
+### `LackOfPaintPressure` (retired) and `LowFreeThrowRate` (its replacement)
+
+**`PointsInPaint` does not exist in this codebase.** `TeamStats` has no
+shot-location data at all - only made/attempted counts for field goals,
+three-pointers, and free throws (see Milestone 1 above). There is no way to
+isolate "points scored in the paint" from a team's total points or even from
+its two-point makes (`FieldGoalsMade - ThreePointsMade` includes mid-range
+looks, not just paint shots). This is true for both a final box score and a
+live, in-progress one - it isn't a live-sample reliability gap, it's a
+missing input the raw-stat model was never given. Inferring "paint points"
+from total points alone (e.g. treating a low-scoring game as a paint-scoring
+problem) would assert something the data cannot support, which is why no
+rule here does that.
+
+`LackOfPaintPressure`'s original trigger was:
+
+```text
+team.PersonalFouls <= opponent.PersonalFouls - 5
+  AND
+team.Points <= opponent.Points
+```
+
+Auditing this against the data it reads: **team fouls committed by the team
+itself, and overall score**, have no defensible relationship to that team's
+own interior/rim scoring. Fewer personal fouls than the opponent mostly
+reflects defensive/foul discipline (a Defense-side concern, already covered
+in spirit by `FoulsProblem`'s comparison in the other direction), not
+offensive paint pressure; trailing on the scoreboard can happen for any
+number of unrelated reasons (turnovers, rebounding, three-point defense).
+The name promised an interior-scoring finding the trigger never measured.
+
+**Decision: retired, not reused.** Reusing the tag with a new trigger would
+have made `ProblemTag.LackOfPaintPressure` mean two different things across
+the history of a single database - the old fouls/score heuristic for
+existing records, something else for new ones - which conflicts with this
+project's stance against silently overlapping/reinterpreted findings (see
+`LowEffectiveFieldGoalPercentage` above). Instead:
+
+- `StatRulesEngine` no longer triggers `LackOfPaintPressure` at all.
+- The enum member is kept, never removed, so existing analysis records that
+  contain it (persisted as the raw ordinal `5`) keep resolving to a real
+  label instead of `Unknown(5)` in Admin.
+- `AnalysisHistoryService.RulesetVersion` was bumped (`1.2` -> `1.3`) to mark
+  that the active rule set changed under these records.
+
+**Replacement: `LowFreeThrowRate`.** This is a literal finding, not an
+interior-scoring one: the team attempted few free throws relative to its
+field-goal attempts. It does not claim, prove, or imply low interior/rim
+aggression, low paint pressure, or any other cause. Free throws arise from
+several distinct situations besides drives to the rim (post-ups away from
+the basket, and-one calls on catch-and-shoot attempts, deliberate late-game
+fouling by the opponent, shooting fouls beyond the paint), and plenty of
+real paint attacks draw no whistle at all - so free-throw rate cannot stand
+in for "how often did we attack the paint," only for "how often did we reach
+the line." The name deliberately avoids the word "paint" (or "aggression",
+"rim pressure", etc.) for exactly this reason - it names the metric it
+reads (`FTA / FGA`, already calculated by M2A as
+`TeamCalculatedMetrics.FreeThrowRate`), not an interpretation of it:
+
+```text
+team.FieldGoalsAttempted >= profile.OurLowFreeThrowRateAttemptsMin
+  AND
+CalculatedMetricsCalculator.Calculate(team).FreeThrowRate
+  <= profile.OurLowFreeThrowRate
+```
+
+Same minimum-attempts reasoning as `LowEffectiveFieldGoalPercentage`:
+`FreeThrowRate == 0.0` when `FieldGoalsAttempted == 0` (M2A's
+zero-denominator convention), so without `OurLowFreeThrowRateAttemptsMin`
+(current default 20 at Amateur level) a team that simply hasn't shot much
+yet - including early in a live, in-progress game - would misread as
+"maximally low" from a trivial sample. This is exactly the small-live-sample
+case the gate exists to prevent.
+
+Thresholds (`RulesProfile.OurLowFreeThrowRate`/`OurLowFreeThrowRateAttemptsMin`,
+and the per-level values in `CoachHoopsAI.Api/appsettings.json`) are current
+defaults, not universal basketball facts - real free-throw-rate baselines
+vary by level, whistle tendencies, and play style, and these values are a
+starting point expected to evolve. `OurLowFreeThrowRateAttemptsMin` mirrors
+`OurLowEffectiveFieldGoalPctAttemptsMin`'s per-level values, since both gate
+the same denominator (`FieldGoalsAttempted`) for the same reason.
+
+`LowFreeThrowRate` was appended at the very end of the `ProblemTag` enum
+(after `LowEffectiveFieldGoalPercentage`), for the same ordinal-safety reason
+documented above.
+
 ## Philosophy
 
 Rules represent �coach-agreeable� heuristics, not absolute truth.

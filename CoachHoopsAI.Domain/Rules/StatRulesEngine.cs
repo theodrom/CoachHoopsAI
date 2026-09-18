@@ -19,10 +19,9 @@ namespace CoachHoopsAI.Domain.Rules
             var opponentFieldGoalPct = LegacyPercentageBridge.FieldGoalPercentage(opponent);
             var opponentThreePointPct = LegacyPercentageBridge.ThreePointPercentage(opponent);
 
-            // Milestone 3's first rule to read the Milestone 2 calculated-metrics
-            // layer directly, instead of LegacyPercentageBridge - eFG% weights made
-            // three-pointers correctly, which raw FG% (above) does not.
-            var teamEffectiveFieldGoalPct = CalculatedMetricsCalculator.Calculate(team).EffectiveFieldGoalPercentage;
+            // Milestone 3's rules that read the Milestone 2 calculated-metrics layer
+            // directly, instead of LegacyPercentageBridge.
+            var teamMetrics = CalculatedMetricsCalculator.Calculate(team);
 
             // Offense
             if ((team.Turnovers - opponent.Turnovers) >= profile.TurnoverDiffToFlag)
@@ -36,18 +35,22 @@ namespace CoachHoopsAI.Domain.Rules
             // (Milestone 2A's zero-denominator convention), which would otherwise read as
             // "maximally inefficient" for a team that simply hasn't shot yet.
             if (team.FieldGoalsAttempted >= profile.OurLowEffectiveFieldGoalPctAttemptsMin
-                && teamEffectiveFieldGoalPct <= profile.OurLowEffectiveFieldGoalPct)
+                && teamMetrics.EffectiveFieldGoalPercentage <= profile.OurLowEffectiveFieldGoalPct)
                 tags.Add(ProblemTag.LowEffectiveFieldGoalPercentage);
+
+            // Replaces the old LackOfPaintPressure trigger below (personal fouls +
+            // score), which had no defensible connection to what it claimed to
+            // measure. FreeThrowRate == 0.0 when FieldGoalsAttempted == 0 (same M2A
+            // convention as above), so the same kind of attempts gate applies here.
+            if (team.FieldGoalsAttempted >= profile.OurLowFreeThrowRateAttemptsMin
+                && teamMetrics.FreeThrowRate <= profile.OurLowFreeThrowRate)
+                tags.Add(ProblemTag.LowFreeThrowRate);
 
             if (team.ThreePointsAttempted >= profile.TooManyThreeAttemptsMin && teamThreePointPct <= profile.TooManyThreePctMax)
                 tags.Add(ProblemTag.TooManyThreePointAttempts);
 
             if ((opponent.Points - team.Points) >= profile.LossByPointsToFlagOffensiveEfficiency && teamFieldGoalPct <= profile.OurLowFieldGoalPctForOffensiveEfficiency)
                 tags.Add(ProblemTag.OffensiveEfficiencyProblem);
-
-            if (team.PersonalFouls <= opponent.PersonalFouls - 5 && team.Points <= opponent.Points)
-                tags.Add(ProblemTag.LackOfPaintPressure);
-
 
             // Defense
             if (opponentFieldGoalPct >= profile.OpponentHighFieldGoalPct)

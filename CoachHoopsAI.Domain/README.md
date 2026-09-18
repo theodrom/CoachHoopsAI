@@ -53,11 +53,15 @@ It defines the concepts, language, and deterministic rules used to analyze games
   calculated symmetrically; an additional overload also taking
   `GameFormat`/`GameTiming` adds live estimated pace. Reuses
   CalculatedMetricsCalculator rather than duplicating it
-- `StatRulesEngine`'s `LowEffectiveFieldGoalPercentage` rule (Milestone 3) is
-  the first production consumer of this layer, reading
-  `CalculatedMetricsCalculator`'s `EffectiveFieldGoalPercentage` directly; the
-  rest of M2A/M2B/M2C still has no consumer - see
-  `Docs/03-domain-and-rules.md`
+- `StatRulesEngine`'s `LowEffectiveFieldGoalPercentage` and `LowFreeThrowRate`
+  rules (Milestone 3) are the production consumers of this layer so far,
+  reading `CalculatedMetricsCalculator`'s `EffectiveFieldGoalPercentage`/
+  `FreeThrowRate` directly; the rest of M2A/M2B/M2C still has no consumer -
+  see `Docs/03-domain-and-rules.md`
+- `LowFreeThrowRate` replaced `LackOfPaintPressure`'s trigger (fouls + score,
+  with no defensible connection to what it claimed to measure); the
+  `LackOfPaintPressure` enum member is kept, but `StatRulesEngine` no longer
+  triggers it - see `Docs/03-domain-and-rules.md`
 
 ---
 

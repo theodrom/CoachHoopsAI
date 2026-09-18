@@ -16,7 +16,10 @@ namespace CoachHoopsAI.Application.Services
         };
 
         // For V3.0 keep these constants in one place; later make them configurable.
-        private const string RulesetVersion = "1.2";
+        // Bumped to 1.3: StatRulesEngine retired LackOfPaintPressure's trigger and
+        // added LowFreeThrowRate/LowEffectiveFieldGoalPercentage - see
+        // Docs/03-domain-and-rules.md's "Findings (Milestone 3)" section.
+        private const string RulesetVersion = "1.3";
         private const string PromptVersion = "v2.0";
 
         public AnalysisHistoryService(IGameAnalysisService analysisService, IAnalysisRepository repo)

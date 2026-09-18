@@ -18,6 +18,16 @@ namespace CoachHoopsAI.Domain.Enums
         OffensiveEfficiencyProblem,
         OurShootingInefficiency,
         TooManyThreePointAttempts,
+
+        // Retired as of ruleset 1.3 - StatRulesEngine no longer triggers this tag.
+        // Its original trigger (team personal fouls far below the opponent's, while
+        // not leading on score) had no defensible connection to interior/rim
+        // aggression; TeamStats has no shot-location data (no PointsInPaint or
+        // equivalent) to support a real "paint pressure" finding. Kept defined,
+        // never removed, so already-persisted analysis records containing this
+        // ordinal keep displaying correctly (see the ordinal-safety note below).
+        // See LowFreeThrowRate for the replacement finding and
+        // Docs/03-domain-and-rules.md for the full rationale.
         LackOfPaintPressure,
 
         // Rebounding
@@ -45,7 +55,19 @@ namespace CoachHoopsAI.Domain.Enums
         // calculated-metrics layer) is low, with enough field-goal attempts for the
         // percentage to be meaningful. Describes the measured shooting result only -
         // it does not assert a cause (shot selection, spacing, defense, etc.).
-        LowEffectiveFieldGoalPercentage
+        LowEffectiveFieldGoalPercentage,
+
+        // Replaces LackOfPaintPressure above. The team attempted few free throws
+        // relative to its field-goal attempts (FTA/FGA, Milestone 2A), with enough
+        // field-goal attempts for the rate to be meaningful. This is a literal
+        // description of that rate only - it does NOT claim, prove, or imply low
+        // interior/rim aggression, paint pressure, shot attempts in the paint, or
+        // shot selection. Free throws arise from several situations besides paint
+        // drives (post-ups away from the basket, and-one calls, deliberate late-game
+        // fouling, shooting fouls beyond the paint), and real paint attacks often
+        // draw no whistle at all, so this rate cannot stand in for paint activity;
+        // TeamStats also has no shot-location data to support that claim directly.
+        LowFreeThrowRate
     }
 
     public enum SuggestionCategory

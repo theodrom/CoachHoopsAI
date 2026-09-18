@@ -240,15 +240,75 @@ public class StatRulesEngineTests
         Assert.Contains(ProblemTag.OffensiveEfficiencyProblem, tags);
     }
 
+    // Milestone 3: LackOfPaintPressure's old trigger (personal fouls far below the
+    // opponent's, while not leading on score) is retired - it had no defensible
+    // connection to paint/rim pressure, and TeamStats has no shot-location data to
+    // support a real "paint scoring" finding. LowFreeThrowRate (FTA/FGA, M2A)
+    // replaces it as a purely literal finding - few free-throw attempts relative to
+    // field-goal attempts - and does not claim or imply interior/rim aggression:
+    // free throws arise from several situations besides paint drives, and real
+    // paint attacks often draw no whistle at all. Default profile (Amateur-tier):
+    // OurLowFreeThrowRate = 0.18, OurLowFreeThrowRateAttemptsMin = 20.
+
     [Fact]
-    public void Evaluate_FarFewerFoulsWhileNotAheadOnScore_TriggersLackOfPaintPressure()
+    public void Evaluate_FoulsAndScoreAlone_NoLongerTriggerLackOfPaintPressure()
     {
+        // The exact scenario that used to trigger the retired rule: team fouls far
+        // below the opponent's (<= opponent - 5) while not leading on score. Neither
+        // signal is read by StatRulesEngine anymore for this finding.
         var team = Healthy() with { Points = 70, PersonalFouls = 10 };
         var opponent = HealthyOpponent() with { Points = 78, PersonalFouls = 16 }; // team.Fouls <= opp.Fouls - 5
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
-        Assert.Contains(ProblemTag.LackOfPaintPressure, tags);
+        Assert.DoesNotContain(ProblemTag.LackOfPaintPressure, tags);
+    }
+
+    [Theory]
+    [InlineData(19, false)] // FT rate 19/100 = 0.19, just above the 0.18 threshold
+    [InlineData(18, true)]  // FT rate 18/100 = 0.18, at threshold (<=, boundary)
+    [InlineData(15, true)]  // FT rate 15/100 = 0.15, below threshold
+    public void Evaluate_FreeThrowRate_Boundary(int freeThrowsAttempted, bool expectTag)
+    {
+        var team = Healthy() with { FieldGoalsAttempted = 100, FreeThrowsAttempted = freeThrowsAttempted };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.LowFreeThrowRate));
+    }
+
+    [Theory]
+    [InlineData(19, false)] // FieldGoalsAttempted just below OurLowFreeThrowRateAttemptsMin (20)
+    [InlineData(20, true)]  // at the minimum (boundary)
+    [InlineData(25, true)]  // above the minimum
+    public void Evaluate_FreeThrowRate_InsufficientAttempts_DoesNotTrigger(int fieldGoalsAttempted, bool expectTag)
+    {
+        // FreeThrowsMade/Attempted stay at 1/2 throughout, so the rate falls well
+        // below 0.18 at every field-goal-attempt count below - only the sample size
+        // changes, proving the minimum-attempts gate (not the rate itself) is what
+        // suppresses the tag below the cutoff.
+        var team = Healthy() with { FieldGoalsAttempted = fieldGoalsAttempted, FreeThrowsMade = 1, FreeThrowsAttempted = 2 };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.LowFreeThrowRate));
+    }
+
+    [Fact]
+    public void Evaluate_FreeThrowRate_ZeroFieldGoalAttempts_DoesNotTrigger()
+    {
+        // CalculatedMetricsCalculator returns FreeThrowRate == 0.0 when
+        // FieldGoalsAttempted == 0 (M2A's zero-denominator convention), which would
+        // otherwise misread as "maximally low" for a team that simply hasn't shot
+        // yet (e.g. very early in a live game). The attempts gate must block this.
+        var team = Healthy() with { FieldGoalsAttempted = 0, FreeThrowsMade = 0, FreeThrowsAttempted = 0 };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.LowFreeThrowRate, tags);
     }
 
     [Theory]
