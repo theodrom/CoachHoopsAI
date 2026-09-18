@@ -228,15 +228,192 @@ public class StatRulesEngineTests
         Assert.Contains(ProblemTag.TooManyThreePointAttempts, tags);
     }
 
-    [Fact]
-    public void Evaluate_LosingByEnoughWithLowFieldGoalPct_TriggersOffensiveEfficiencyProblem()
+    // Milestone 3: OffensiveEfficiencyProblem's old trigger (raw FG% <= threshold,
+    // gated on losing by a score margin) is replaced - being behind was never
+    // necessary for an offense to be inefficient, and raw FG% ignores turnovers and
+    // free throws entirely. It now reads OffensiveRating (points per 100 estimated
+    // possessions, M2B) directly. Unlike LackOfPaintPressure, this reuses the same
+    // ProblemTag rather than retiring it: the old trigger was a narrow, score-gated
+    // proxy for the same underlying concept OffensiveRating measures directly, not
+    // something conceptually unrelated. Default profile (Amateur-tier):
+    // OurLowOffensiveRating = 95.0, OurLowOffensiveRatingPossessionsMin = 20.0.
+
+    [Theory]
+    [InlineData(96, false)] // OffensiveRating = 100*96/100 = 96, just above the 95 threshold
+    [InlineData(95, true)]  // = 95, at threshold (<=, boundary)
+    [InlineData(90, true)]  // = 90, below threshold
+    public void Evaluate_OffensiveRating_Boundary(int points, bool expectTag)
     {
-        // Team FG 20/50 = 0.40 (<= OurLowFieldGoalPctForOffensiveEfficiency 0.45).
-        var team = Healthy() with { Points = 70, FieldGoalsMade = 20, FieldGoalsAttempted = 50 };
-        var opponent = HealthyOpponent() with { Points = 82 }; // +12 margin
+        // FGA=100, OREB=TO=FTA=0 -> EstimatedPossessions = 100 - 0 + 0 + 0.44*0 = 100
+        // exactly, so OffensiveRating = 100 * Points / 100 = Points - a clean 1:1
+        // mapping that isolates the threshold boundary.
+        var team = Healthy() with
+        {
+            Points = points,
+            FieldGoalsAttempted = 100,
+            OffensiveRebounds = 0,
+            Turnovers = 0,
+            FreeThrowsMade = 0,
+            FreeThrowsAttempted = 0
+        };
+        var opponent = HealthyOpponent();
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.OffensiveEfficiencyProblem));
+    }
+
+    [Theory]
+    [InlineData(19, false)] // EstimatedPossessions just below OurLowOffensiveRatingPossessionsMin (20)
+    [InlineData(20, true)]  // at the minimum (boundary)
+    [InlineData(25, true)]  // above the minimum
+    public void Evaluate_OffensiveRating_InsufficientPossessions_DoesNotTrigger(int fieldGoalsAttempted, bool expectTag)
+    {
+        // Points fixed low (15) throughout, so OffensiveRating stays well below the
+        // 95 threshold at every possession count below - only the sample size
+        // changes, proving the minimum-possessions gate (not the rating itself) is
+        // what suppresses the tag below the cutoff.
+        var team = Healthy() with
+        {
+            Points = 15,
+            FieldGoalsMade = (int)(fieldGoalsAttempted * 0.3),
+            FieldGoalsAttempted = fieldGoalsAttempted,
+            ThreePointsMade = 0,
+            ThreePointsAttempted = 0,
+            OffensiveRebounds = 0,
+            Turnovers = 0,
+            FreeThrowsMade = 0,
+            FreeThrowsAttempted = 0
+        };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.OffensiveEfficiencyProblem));
+    }
+
+    [Fact]
+    public void Evaluate_OffensiveRating_ZeroEstimatedPossessions_RatingUnavailable_DoesNotTrigger()
+    {
+        // All-zero TeamStats (structurally valid, no invented negative stats) drives
+        // EstimatedPossessions to exactly 0, so OffensiveRating is null
+        // (GameCalculatedMetricsCalculator's zero-denominator convention). The gate
+        // must not emit the finding when the rating itself is unavailable.
+        var team = new TeamStats();
+        var opponent = HealthyOpponent();
+
+        var metrics = GameCalculatedMetricsCalculator.Calculate(team, opponent).Team;
+        Assert.Null(metrics.OffensiveRating);
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.OffensiveEfficiencyProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OffensiveRating_NegativeEstimatedPossessions_DoesNotTrigger()
+    {
+        // OffensiveRebounds (50) exceeds FieldGoalsAttempted + Turnovers + 0.44*FTA
+        // (10), producing a negative EstimatedPossessions (-40). Whether this raw
+        // input should be rejected upstream is a separate, out-of-scope validation
+        // question (see CLAUDE.md's open questions) - but regardless of that policy,
+        // this rule must never emit a finding from a non-positive possession
+        // estimate. OffensiveRating is non-null here (RateOrNull only returns null
+        // when the denominator is exactly zero), proving the possessions-min gate -
+        // not a null check alone - is what protects this case.
+        var team = new TeamStats { Points = 20, FieldGoalsAttempted = 10, OffensiveRebounds = 50 };
+        var opponent = HealthyOpponent();
+
+        var metrics = GameCalculatedMetricsCalculator.Calculate(team, opponent).Team;
+        Assert.Equal(-40.0, metrics.EstimatedPossessions, precision: 10);
+        Assert.NotNull(metrics.OffensiveRating);
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.OffensiveEfficiencyProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OffensiveRating_LowWhileWinning_StillTriggers()
+    {
+        // The old trigger required losing by a margin; this proves that requirement
+        // is gone - a team can have a low offensive rating, and get flagged for it,
+        // even while leading on the scoreboard.
+        var team = Healthy() with
+        {
+            Points = 50,
+            FieldGoalsAttempted = 100,
+            OffensiveRebounds = 0,
+            Turnovers = 0,
+            FreeThrowsMade = 0,
+            FreeThrowsAttempted = 0
+        }; // EstimatedPossessions = 100, OffensiveRating = 50 (well below the 95 threshold)
+        var opponent = HealthyOpponent() with { Points = 40 };
+
+        Assert.True(team.Points > opponent.Points); // sanity: team is ahead, not behind
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.OffensiveEfficiencyProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OffensiveRating_CoOccursWithLowEffectiveFieldGoalPercentage_WithoutDuplicationOrInterference()
+    {
+        // Low eFG% and a low offensive rating can occur together - neither implies
+        // the other, and both can legitimately fire on the same team/game without
+        // one suppressing or duplicating the other.
+        var team = Healthy() with
+        {
+            Points = 50,
+            FieldGoalsMade = 16, // eFG% = 16/100 = 0.16, well below 0.47
+            FieldGoalsAttempted = 100,
+            ThreePointsMade = 0,
+            ThreePointsAttempted = 0,
+            OffensiveRebounds = 0,
+            Turnovers = 0,
+            FreeThrowsMade = 0,
+            FreeThrowsAttempted = 0
+        };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.LowEffectiveFieldGoalPercentage, tags);
+        Assert.Contains(ProblemTag.OffensiveEfficiencyProblem, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
+    }
+
+    [Fact]
+    public void Evaluate_OffensiveRating_LowDespiteGoodEffectiveFieldGoalPercentage_ProvesDistinctFromShootingFinding()
+    {
+        // Good shooting (eFG% = 25/50 = 0.50, above the 0.47 threshold) but a huge
+        // turnover count inflates estimated possessions far beyond made shots,
+        // driving points-per-possession down - proof that a low OffensiveRating
+        // neither requires nor is implied by poor shooting efficiency; they are
+        // distinct findings, not restatements of each other.
+        var team = Healthy() with
+        {
+            Points = 50, // all 25 field goals were 2-pointers
+            FieldGoalsMade = 25,
+            FieldGoalsAttempted = 50,
+            ThreePointsMade = 0,
+            ThreePointsAttempted = 0,
+            OffensiveRebounds = 0,
+            Turnovers = 50,
+            FreeThrowsMade = 0,
+            FreeThrowsAttempted = 0
+        };
+        var opponent = HealthyOpponent();
+
+        var metrics = GameCalculatedMetricsCalculator.Calculate(team, opponent).Team;
+        Assert.Equal(0.50, metrics.EffectiveFieldGoalPercentage, precision: 10);
+        Assert.Equal(100.0, metrics.EstimatedPossessions, precision: 10);
+        Assert.Equal(50.0, metrics.OffensiveRating!.Value, precision: 10);
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.LowEffectiveFieldGoalPercentage, tags);
         Assert.Contains(ProblemTag.OffensiveEfficiencyProblem, tags);
     }
 

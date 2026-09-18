@@ -234,13 +234,10 @@ Amateur level) exists to prevent that.
 
 **Thresholds are current defaults, not universal basketball facts** - see
 `RulesProfile.OurLowEffectiveFieldGoalPct`/`OurLowEffectiveFieldGoalPctAttemptsMin`
-and the per-level values in `CoachHoopsAI.Api/appsettings.json`. The
-percentage threshold is set a little above the corresponding
-`OurLowFieldGoalPctForOffensiveEfficiency` (raw FG%) threshold per level,
-since eFG% credits made three-pointers and so reads a few points higher than
-raw FG% for any team that makes some; the attempts minimum scales down for
-levels with shorter game formats (fewer total field-goal attempts per game),
-mirroring how `TooManyThreeAttemptsMin` already scales per level.
+and the per-level values in `CoachHoopsAI.Api/appsettings.json`. The attempts
+minimum scales down for levels with shorter game formats (fewer total
+field-goal attempts per game), mirroring how `TooManyThreeAttemptsMin`
+already scales per level.
 
 **Enum ordinal note.** `ProblemTag` is persisted as a raw integer array
 (`AnalysisRecord.ProblemTagsJson`, via `System.Text.Json`'s default enum
@@ -337,6 +334,91 @@ the same denominator (`FieldGoalsAttempted`) for the same reason.
 `LowFreeThrowRate` was appended at the very end of the `ProblemTag` enum
 (after `LowEffectiveFieldGoalPercentage`), for the same ordinal-safety reason
 documented above.
+
+### `OffensiveEfficiencyProblem` (refined, same tag)
+
+**Old trigger:**
+
+```text
+(opponent.Points - team.Points) >= profile.LossByPointsToFlagOffensiveEfficiency
+  AND
+LegacyPercentageBridge.FieldGoalPercentage(team) <= profile.OurLowFieldGoalPctForOffensiveEfficiency
+```
+
+Required **both** losing by a score margin **and** a low raw FG%. Raw FG%
+ignores three-pointers and free throws entirely, and the margin gate meant a
+team could have a genuinely poor offense in a close game or a win and never
+be flagged, while a team that lost badly for unrelated reasons (turnovers,
+rebounding, fouls) with merely mediocre shooting could be.
+
+**New trigger:**
+
+```text
+teamMetrics.EstimatedPossessions >= profile.OurLowOffensiveRatingPossessionsMin
+  AND
+teamMetrics.OffensiveRating.HasValue
+  AND
+teamMetrics.OffensiveRating.Value <= profile.OurLowOffensiveRating
+```
+
+where `teamMetrics` is `GameCalculatedMetricsCalculator.Calculate(team, opponent).Team`
+(M2B) - `OffensiveRating` (points per 100 `EstimatedPossessions`) is only
+populated by the two/four-argument game-level calculator, not
+`CalculatedMetricsCalculator.Calculate(team)` alone, so `StatRulesEngine` now
+computes `teamMetrics` via the M2B calculator instead (its `.Team` still
+carries every M2A field unchanged, so `LowEffectiveFieldGoalPercentage` and
+`LowFreeThrowRate` above are unaffected by this switch).
+
+**The score-margin gate is removed entirely.** A team's offense can be
+inefficient whether the team is losing, tied, or winning; requiring a loss
+first was never a defensible precondition for that finding, so it no longer
+gates anything here.
+
+**Why the same tag, not a new one - unlike `LackOfPaintPressure`.** The
+distinguishing test applied to both decisions: did the old trigger measure a
+plausible, if crude, version of what the tag's name claims, or something
+essentially unrelated? `LackOfPaintPressure`'s old trigger (fouls + score)
+had no monotonic relationship to interior scoring at all - that was retired.
+`OffensiveEfficiencyProblem`'s old trigger (low raw FG% narrowly gated on
+losing) *is* a crude, under-inclusive proxy for the same concept
+`OffensiveRating` now measures directly - both are fundamentally about "the
+offense did not score efficiently." Reusing the tag here completes, rather
+than contradicts, the concept it already named. `AnalysisHistoryService.RulesetVersion`
+was bumped (`1.3` -> `1.4`) to mark that the trigger changed.
+
+**Do not emit when the rating is unavailable or possessions are
+non-positive.** `OffensiveRating` is `null` only when `EstimatedPossessions == 0`
+exactly (M2B's zero-denominator convention). A *negative* `EstimatedPossessions`
+(possible today - see the open `EstimatedPossessions` validation question
+under "Next steps (M3)" in `CLAUDE.md`) is a **different** case: it produces
+a non-null but meaningless `OffensiveRating`, which a null check alone would
+not catch. `OurLowOffensiveRatingPossessionsMin` being a positive threshold
+handles both in one comparison - zero, negative, and merely-too-small
+possession counts all fail `EstimatedPossessions >= PossessionsMin`. This
+rule does not change or add any input-validation policy; it only refuses to
+draw a conclusion from a possession estimate it cannot trust.
+
+**Minimum possessions gate**, not an attempts gate: `OffensiveRating`'s
+denominator is `EstimatedPossessions`, not `FieldGoalsAttempted`, so the
+sample-size gate is possession-based (`OurLowOffensiveRatingPossessionsMin`,
+a `double` since `EstimatedPossessions` is never rounded to an integer -
+current default 20.0 at Amateur level), for the same small-live-sample
+reason as the attempts gates above, and mirrors their per-level values.
+
+**Distinct from `LowEffectiveFieldGoalPercentage`.** Shooting efficiency
+(eFG%) and points per estimated possession (`OffensiveRating`) can both be
+low on the same team/game, or only one can be - a team can shoot well but
+still have a low rating if turnovers inflate its possession count far beyond
+its shot attempts, and a team can shoot poorly while still posting an
+adequate rating if it draws enough free throws or limits turnovers. Neither
+metric identifies shot selection, spacing, pace, or any other tactical cause;
+both describe a measured result only.
+
+Thresholds (`RulesProfile.OurLowOffensiveRating`/`OurLowOffensiveRatingPossessionsMin`,
+and the per-level values in `CoachHoopsAI.Api/appsettings.json`) are current
+defaults, not universal basketball facts - real offensive-rating baselines
+vary enormously by level and style of play, and these values are a starting
+point expected to evolve.
 
 ## Philosophy
 

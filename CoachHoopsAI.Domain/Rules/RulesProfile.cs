@@ -31,24 +31,33 @@ namespace CoachHoopsAI.Domain.Rules
         // “Interior defense” proxy
         public double OpponentHighFieldGoalPct { get; set; } = 0.52;
 
-        // Offensive efficiency proxy
-        public int LossByPointsToFlagOffensiveEfficiency { get; set; } = 10;
-        public double OurLowFieldGoalPctForOffensiveEfficiency { get; set; } = 0.45;
-
         // Transition defense proxy
         public int LossByPointsToFlagTransition { get; set; } = 10;
         public int TurnoversMinToFlagTransition { get; set; } = 15;
 
         // Overall shooting efficiency (effective field-goal %, Milestone 3) - current
         // defaults, not universal basketball facts. eFG% credits three-pointers at
-        // 1.5x a two-pointer (matching CalculatedMetricsCalculator), so this
-        // threshold sits a little above the raw-FG%-based
-        // OurLowFieldGoalPctForOffensiveEfficiency threshold above, since a team
-        // that makes some threes will always read a few points higher on eFG% than
-        // on raw FG%. AttemptsMin exists so a handful of early-game attempts can't
-        // read as "inefficient" purely from a small-sample percentage.
+        // 1.5x a two-pointer (matching CalculatedMetricsCalculator). AttemptsMin
+        // exists so a handful of early-game attempts can't read as "inefficient"
+        // purely from a small-sample percentage.
         public double OurLowEffectiveFieldGoalPct { get; set; } = 0.47;
         public int OurLowEffectiveFieldGoalPctAttemptsMin { get; set; } = 20;
+
+        // Offensive rating (points per 100 estimated possessions, Milestone 3;
+        // GameCalculatedMetricsCalculator/M2B) - current defaults, not universal
+        // basketball facts. Replaces OffensiveEfficiencyProblem's old trigger (raw
+        // FG% gated on losing by a score margin - LossByPointsToFlagOffensiveEfficiency
+        // and OurLowFieldGoalPctForOffensiveEfficiency, both removed): being behind is
+        // not required for an offense to be inefficient, and points-per-possession
+        // accounts for turnovers and free throws, which raw FG% ignores entirely.
+        // PossessionsMin (a possession count, not an attempts count, since
+        // OffensiveRating's denominator is EstimatedPossessions) exists for the same
+        // small-sample reason as the AttemptsMin fields above, and mirrors their
+        // per-level values since both gate a possession-scale sample size. A low
+        // rating here is a measured result only - it does not identify a tactical
+        // cause (shot selection, pace, turnovers, etc.).
+        public double OurLowOffensiveRating { get; set; } = 95.0;
+        public double OurLowOffensiveRatingPossessionsMin { get; set; } = 20.0;
 
         // Free-throw rate (FTA/FGA, Milestone 3) - current defaults, not universal
         // basketball facts. Replaces the old LackOfPaintPressure heuristic

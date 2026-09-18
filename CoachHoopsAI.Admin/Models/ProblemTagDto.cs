@@ -9,7 +9,7 @@ public sealed class ProblemTagDto
     {
         0 => "None",
         1 => "Turnover Problem",
-        2 => "Offensive Efficiency Problem",
+        2 => "Offensive Efficiency Problem", // ruleset 1.4 onward: OffensiveRating-based, no score-margin gate (see Docs/03-domain-and-rules.md)
         3 => "Our Shooting Inefficiency",
         4 => "Too Many Three Point Attempts",
         5 => "Lack Of Paint Pressure", // retired ruleset 1.3 onward - StatRulesEngine no longer triggers this; kept for historical records

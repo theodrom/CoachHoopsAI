@@ -20,8 +20,13 @@ namespace CoachHoopsAI.Domain.Rules
             var opponentThreePointPct = LegacyPercentageBridge.ThreePointPercentage(opponent);
 
             // Milestone 3's rules that read the Milestone 2 calculated-metrics layer
-            // directly, instead of LegacyPercentageBridge.
-            var teamMetrics = CalculatedMetricsCalculator.Calculate(team);
+            // directly, instead of LegacyPercentageBridge. GameCalculatedMetricsCalculator
+            // (M2B), not just CalculatedMetricsCalculator (M2A), is used here because
+            // OffensiveEfficiencyProblem below needs OffensiveRating/EstimatedPossessions,
+            // which only M2B populates - .Team already carries every M2A field too
+            // (unchanged from a direct CalculatedMetricsCalculator.Calculate(team) call),
+            // so this single call covers both without duplicating either calculator.
+            var teamMetrics = GameCalculatedMetricsCalculator.Calculate(team, opponent).Team;
 
             // Offense
             if ((team.Turnovers - opponent.Turnovers) >= profile.TurnoverDiffToFlag)
@@ -49,7 +54,24 @@ namespace CoachHoopsAI.Domain.Rules
             if (team.ThreePointsAttempted >= profile.TooManyThreeAttemptsMin && teamThreePointPct <= profile.TooManyThreePctMax)
                 tags.Add(ProblemTag.TooManyThreePointAttempts);
 
-            if ((opponent.Points - team.Points) >= profile.LossByPointsToFlagOffensiveEfficiency && teamFieldGoalPct <= profile.OurLowFieldGoalPctForOffensiveEfficiency)
+            // Milestone 3 refinement: previously required BOTH losing by a score
+            // margin AND a low raw FG% - being behind was never necessary for an
+            // offense to be inefficient, and raw FG% ignores turnovers and free
+            // throws entirely. Now reads OffensiveRating (points per 100 estimated
+            // possessions, M2B) directly, unconditional on score. Reuses this same
+            // ProblemTag rather than a new one: the old trigger was a narrow,
+            // score-gated proxy for the same underlying concept this measures
+            // directly, not something conceptually unrelated (contrast
+            // LackOfPaintPressure's retirement above) - see
+            // Docs/03-domain-and-rules.md. Possessions-min gate (not just a null
+            // check) is required: OffensiveRating is null only when
+            // EstimatedPossessions == 0 exactly, but a non-zero, invalid negative
+            // possession estimate would otherwise produce a non-null, meaningless
+            // rating - PossessionsMin being a positive threshold excludes zero,
+            // negative, and merely-too-small samples in one comparison.
+            if (teamMetrics.EstimatedPossessions >= profile.OurLowOffensiveRatingPossessionsMin
+                && teamMetrics.OffensiveRating.HasValue
+                && teamMetrics.OffensiveRating.Value <= profile.OurLowOffensiveRating)
                 tags.Add(ProblemTag.OffensiveEfficiencyProblem);
 
             // Defense

@@ -13,8 +13,8 @@ Repository-specific instructions for AI-assisted development on CoachHoopsAI.
   M2B possession/cross-team metrics, M2C live estimated pace) is complete on
   `main`. Not yet tagged.
 - Verified 2026-09-18: `dotnet build CoachHoopsAI.sln` succeeds with no
-  errors; `dotnet test CoachHoopsAI.sln` passes 166 tests, 0 failed
-  (75 + 14 + 9 + 68 across the four test projects below). Treat this as a
+  errors; `dotnet test CoachHoopsAI.sln` passes 176 tests, 0 failed
+  (85 + 14 + 9 + 68 across the four test projects below). Treat this as a
   dated snapshot, not a permanent expected count - re-run rather than
   trusting this number as it ages.
 - Four test projects, no mocking framework, hand-written fakes only:
@@ -103,11 +103,12 @@ facts derived from raw stats, never rounded internally, never folded into
   original two-argument overload is unchanged and simply cannot produce
   `EstimatedPace` (no dummy timing is substituted to force a value).
 - Full formulas and null-semantics tables: `Docs/03-domain-and-rules.md`.
-- Two M3 rules (`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`; see
-  below) now read M2A's `EffectiveFieldGoalPercentage`/`FreeThrowRate`
-  directly. Everything else in M2A/B/C is still not wired into diagnostics,
-  the LLM prompt, Admin, persistence, or API responses - the rest of that
-  integration is later M3 work.
+- Three M3 rules (`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
+  `OffensiveEfficiencyProblem`; see below) now read M2A/M2B's
+  `EffectiveFieldGoalPercentage`/`FreeThrowRate`/`OffensiveRating` directly.
+  Everything else in M2A/B/C is still not wired into diagnostics, the LLM
+  prompt, Admin, persistence, or API responses - the rest of that integration
+  is later M3 work.
 
 ## Compatibility boundary - do not disturb without a milestone decision
 
@@ -123,10 +124,10 @@ facts derived from raw stats, never rounded internally, never folded into
 - The M2 calculated-metrics layer (`TeamCalculatedMetrics`/
   `GameCalculatedMetrics`) exists alongside `LegacyPercentageBridge`, not in
   place of it. `StatRulesEngine` still reads the bridge's two ratios for its
-  original (M1) rules; two M3 rules (`LowEffectiveFieldGoalPercentage`,
-  `LowFreeThrowRate`) additionally read `CalculatedMetricsCalculator` directly
-  - those are the only rules migrated off the bridge so far, not a signal to
-  migrate the rest yet.
+  original (M1) rules; three M3 rules (`LowEffectiveFieldGoalPercentage`,
+  `LowFreeThrowRate`, `OffensiveEfficiencyProblem`) additionally read
+  `GameCalculatedMetricsCalculator` directly - those are the only rules
+  migrated off the bridge so far, not a signal to migrate the rest yet.
 - `GameFormat`/`GameTiming` are captured and persisted but are **intentionally
   not yet consumed** by the rules engine, diagnostics, or the LLM prompt.
 
@@ -137,13 +138,14 @@ facts derived from raw stats, never rounded internally, never folded into
 - **M3 (in progress)** - interpretation/findings/rules grounded in M2's
   calculated metrics. Judgments and thresholds belong here, not M2. Slices
   landed: `LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate` (replaces
-  `LackOfPaintPressure`'s trigger).
+  `LackOfPaintPressure`'s trigger), `OffensiveEfficiencyProblem` (refined
+  in place - same tag, `OffensiveRating`-based, no score-margin gate).
 - **M4** - sessions/snapshots.
 - **M5** - LLM/Admin integration built on the above.
 
 ## Next steps (M3)
 
-Two slices complete, both in `Docs/03-domain-and-rules.md`'s "Findings
+Three slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
 (Milestone 3)" section for full rationale:
 
 - `LowEffectiveFieldGoalPercentage` (`StatRulesEngine`) flags a low team
@@ -164,8 +166,25 @@ Two slices complete, both in `Docs/03-domain-and-rules.md`'s "Findings
   often draw no whistle at all, so the rate cannot stand in for paint
   activity. It was appended as a new tag rather than reusing the old ordinal,
   so the same `ProblemTag` value never means two different things across a
-  database's history. `AnalysisHistoryService.RulesetVersion` was bumped
-  (`1.2` -> `1.3`) to mark the change.
+  database's history.
+- `OffensiveEfficiencyProblem`'s trigger was refined in place - same tag, no
+  new enum member. It previously required BOTH losing by a score margin AND a
+  low raw FG%; it now reads `OffensiveRating` (points per 100
+  `EstimatedPossessions`, M2B) directly, with no score-margin gate. Unlike
+  `LackOfPaintPressure`, the tag was reused rather than retired: the old
+  trigger was a narrow, score-gated proxy for the same underlying concept
+  `OffensiveRating` now measures directly, not something conceptually
+  unrelated. It does not emit when `OffensiveRating` is unavailable (`null`,
+  only when `EstimatedPossessions == 0` exactly) or when `EstimatedPossessions`
+  is non-positive (a negative estimate - see the open validation question
+  below - would otherwise produce a non-null but meaningless rating); one
+  possessions-based minimum-sample gate covers both. `RulesProfile`'s two
+  dead fields from the old trigger
+  (`LossByPointsToFlagOffensiveEfficiency`/`OurLowFieldGoalPctForOffensiveEfficiency`)
+  were removed rather than left unused.
+- `AnalysisHistoryService.RulesetVersion` was bumped twice across these three
+  slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
+  `OffensiveEfficiencyProblem`) to mark each change.
 
 **`ProblemTag` additions must always be appended, never inserted.**
 `AnalysisRecord.ProblemTagsJson` persists tags as a raw integer array
@@ -199,6 +218,10 @@ these values:
 - Box-score input that passes today's API validation can still produce a
   negative `EstimatedPossessions` (no validation rule relates
   `OffensiveRebounds` to `FieldGoalsAttempted`/`Turnovers`/`FreeThrowsAttempted`).
+  The underlying validation policy is still unresolved - but
+  `OffensiveEfficiencyProblem` (see above) now explicitly guards against a
+  non-positive `EstimatedPossessions` before trusting `OffensiveRating`, as
+  one rule-level mitigation, not a fix to the input itself.
 - `GameTiming.ElapsedGameTime` has no defensive clamp for a clock value that
   exceeds its period length; the API blocks this via a cross-field validator,
   but a Domain/Application caller that builds `GameTiming` directly is not
