@@ -59,11 +59,13 @@ documents what M2 *calculates*, not what any of it *means*.
 This is a separate concept from `LegacyPercentageBridge` above: the bridge is
 temporary scaffolding for the existing rules engine's two percentages, while
 `TeamCalculatedMetrics`/`GameCalculatedMetrics` are the new general-purpose
-calculated-metrics layer. As of M2C (M2A + M2B + M2C - the full currently
-planned numerical layer) this has no production consumer - it is not yet
-wired into the rules engine, diagnostics, the LLM prompt, Admin, persistence,
-or API responses. Interpreting any of these numbers (is this pace good, is
-this rebound rate a problem) is explicit M3 scope and is not implemented yet.
+calculated-metrics layer. As of the first Milestone 3 slice, `StatRulesEngine`
+reads exactly one field from this layer - `EffectiveFieldGoalPercentage`, for
+`LowEffectiveFieldGoalPercentage` (see "Findings (Milestone 3)" below).
+Everything else in M2A/M2B/M2C still has no production consumer - it is not
+wired into diagnostics, the LLM prompt, Admin, persistence, or API responses.
+Interpreting the rest of these numbers (is this pace good, is this rebound
+rate a problem) remains M3 scope and is not implemented yet.
 
 ### M2A - single-team metrics
 
@@ -179,6 +181,76 @@ and keeps working exactly as before; it simply cannot produce `EstimatedPace`
 M2C completes the currently planned Milestone 2 numerical layer (M2A + M2B +
 M2C). No further calculated-metrics slices are currently planned; the next
 Milestone 2 area (`Docs/README.md` roadmap) is interpretation (M3).
+
+## Findings (Milestone 3)
+
+M3 findings are judgments built on top of M2's facts: a threshold applied to
+a calculated metric, producing a `ProblemTag`. Unlike M2, findings are
+allowed to say "this is worth a coach's attention" - but a finding still only
+describes a **measured result**, never an asserted **cause**. "Our shooting
+is inefficient" is a finding; "because of poor shot selection" is not - the
+current box-score data can't establish shot selection, spacing, or defensive
+pressure as a cause, so no rule claims one.
+
+### `LowEffectiveFieldGoalPercentage`
+
+The first rule to read the Milestone 2 calculated-metrics layer directly,
+instead of `LegacyPercentageBridge`:
+
+```text
+team.FieldGoalsAttempted >= profile.OurLowEffectiveFieldGoalPctAttemptsMin
+  AND
+CalculatedMetricsCalculator.Calculate(team).EffectiveFieldGoalPercentage
+  <= profile.OurLowEffectiveFieldGoalPct
+```
+
+**Why a new tag, not an existing one.** Two existing tags look related but
+measure something different, and reusing either would have silently created
+an overlapping/ambiguous finding:
+
+- `OurShootingInefficiency` is specifically about **three-point** shooting
+  (`3P% <= OurBadThreePct` with a `3PA` volume gate) - a different metric
+  (3P%, not eFG%) and a narrower scope (three-point shots only).
+- `OffensiveEfficiencyProblem` is gated on **losing by a margin**
+  (`LossByPointsToFlagOffensiveEfficiency`) as well as raw FG% - it conflates
+  "the team is losing badly" with "the team is shooting poorly," and it reads
+  raw FG% rather than eFG%, so it doesn't credit made three-pointers the way
+  eFG% does. A team that is losing for reasons unrelated to shooting (fouls,
+  turnovers, rebounding) can trip it without an eFG% problem, and a team with
+  poor eFG% but a close game never trips it at all.
+
+`LowEffectiveFieldGoalPercentage` is unconditional (no score-margin gate) and
+reads eFG% specifically, so it is a distinct, non-overlapping signal from
+both.
+
+**Minimum field-goal-attempts gate.** `CalculatedMetricsCalculator` returns
+`EffectiveFieldGoalPercentage == 0.0` when `FieldGoalsAttempted == 0` (the
+M2A zero-denominator convention - see M2A above). Without a volume gate, a
+team that simply hadn't taken many shots yet would read as "maximally
+inefficient" purely from a tiny or zero sample, which is a sample-size
+artifact, not a real finding. `OurLowEffectiveFieldGoalPctAttemptsMin`
+(current default 20 field-goal attempts, i.e. roughly a full game's worth at
+Amateur level) exists to prevent that.
+
+**Thresholds are current defaults, not universal basketball facts** - see
+`RulesProfile.OurLowEffectiveFieldGoalPct`/`OurLowEffectiveFieldGoalPctAttemptsMin`
+and the per-level values in `CoachHoopsAI.Api/appsettings.json`. The
+percentage threshold is set a little above the corresponding
+`OurLowFieldGoalPctForOffensiveEfficiency` (raw FG%) threshold per level,
+since eFG% credits made three-pointers and so reads a few points higher than
+raw FG% for any team that makes some; the attempts minimum scales down for
+levels with shorter game formats (fewer total field-goal attempts per game),
+mirroring how `TooManyThreeAttemptsMin` already scales per level.
+
+**Enum ordinal note.** `ProblemTag` is persisted as a raw integer array
+(`AnalysisRecord.ProblemTagsJson`, via `System.Text.Json`'s default enum
+encoding, read back by `ProblemTagDto.MapTag(int)` in Admin) - not as
+strings, unlike the API response's `ProblemTags` (which uses `.ToString()`).
+`LowEffectiveFieldGoalPercentage` was therefore appended at the end of the
+`ProblemTag` enum rather than grouped with the other Offense tags, so it
+doesn't shift the ordinals - and therefore the meaning - of tags already
+present in persisted analysis records. Any future `ProblemTag` addition must
+do the same.
 
 ## Philosophy
 

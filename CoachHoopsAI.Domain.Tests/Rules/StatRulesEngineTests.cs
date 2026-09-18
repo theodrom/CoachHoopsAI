@@ -1,14 +1,16 @@
 using CoachHoopsAI.Domain.Entities;
+using CoachHoopsAI.Domain.Metrics;
 using CoachHoopsAI.Domain.Rules;
 using ProblemTag = CoachHoopsAI.Domain.Enums.ProblemTag;
 
 namespace CoachHoopsAI.Domain.Tests.Rules;
 
-// Locks down today's StatRulesEngine behavior (12 threshold-based rules against a
+// Locks down today's StatRulesEngine behavior (13 threshold-based rules against a
 // RulesProfile) so it can be safely evolved in a later milestone. TeamStats now
 // stores only raw made/attempted counts (Milestone 1); every percentage-driven
 // scenario below is built from an exact made/attempted ratio rather than a stored
-// percentage, per the engine's LegacyPercentageBridge (FGM/FGA, 3PM/3PA).
+// percentage, per the engine's LegacyPercentageBridge (FGM/FGA, 3PM/3PA) for the
+// legacy rules, or CalculatedMetricsCalculator (M2A) for LowEffectiveFieldGoalPercentage.
 public class StatRulesEngineTests
 {
     private readonly StatRulesEngine _engine = new();
@@ -84,6 +86,134 @@ public class StatRulesEngineTests
         var tags = _engine.Evaluate(team, opponent, _profile);
 
         Assert.Contains(ProblemTag.OurShootingInefficiency, tags);
+    }
+
+    // Milestone 3: LowEffectiveFieldGoalPercentage reads TeamCalculatedMetrics'
+    // EffectiveFieldGoalPercentage (M2A) directly, not LegacyPercentageBridge.
+    // Default profile (Amateur-tier): OurLowEffectiveFieldGoalPct = 0.47,
+    // OurLowEffectiveFieldGoalPctAttemptsMin = 20.
+
+    [Theory]
+    [InlineData(48, false)] // eFG% 48/100 = 0.48, just above the 0.47 threshold
+    [InlineData(47, true)]  // eFG% 47/100 = 0.47, at threshold (<=, boundary)
+    [InlineData(44, true)]  // eFG% 44/100 = 0.44, below threshold
+    public void Evaluate_EffectiveFieldGoalPct_Boundary(int fieldGoalsMade, bool expectTag)
+    {
+        // 3PM = 0 keeps eFG% numerically equal to FG% here, isolating the threshold
+        // boundary from the three-point weighting (covered separately below).
+        var team = Healthy() with
+        {
+            FieldGoalsMade = fieldGoalsMade,
+            FieldGoalsAttempted = 100,
+            ThreePointsMade = 0,
+            ThreePointsAttempted = 0
+        };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.LowEffectiveFieldGoalPercentage));
+    }
+
+    [Theory]
+    [InlineData(19, false)] // FieldGoalsAttempted just below OurLowEffectiveFieldGoalPctAttemptsMin (20)
+    [InlineData(20, true)]  // at the minimum (boundary)
+    [InlineData(25, true)]  // above the minimum
+    public void Evaluate_EffectiveFieldGoalPct_InsufficientAttempts_DoesNotTrigger(int fieldGoalsAttempted, bool expectTag)
+    {
+        // eFG% stays clearly below the 0.47 threshold at every attempt count below
+        // (~0.37-0.40) - only the sample size changes, proving the minimum-attempts
+        // gate (not the percentage itself) is what suppresses the tag below the cutoff.
+        var fieldGoalsMade = (int)(fieldGoalsAttempted * 0.4);
+        var team = Healthy() with
+        {
+            FieldGoalsMade = fieldGoalsMade,
+            FieldGoalsAttempted = fieldGoalsAttempted,
+            ThreePointsMade = 0,
+            ThreePointsAttempted = 0
+        };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.LowEffectiveFieldGoalPercentage));
+    }
+
+    [Fact]
+    public void Evaluate_EffectiveFieldGoalPct_CreditsThreePointers_SoRawFieldGoalPctAloneWouldMisjudgeIt()
+    {
+        // FG 40/100 = 0.40 (would itself be well below 0.47 if judged on raw FG%),
+        // but half those makes are threes: eFG% = (40 + 0.5*20) / 100 = 0.50, above
+        // the threshold. The rule must read eFG%, not raw FG%, to avoid flagging an
+        // efficient three-point shooting team as inefficient.
+        var team = Healthy() with
+        {
+            FieldGoalsMade = 40,
+            FieldGoalsAttempted = 100,
+            ThreePointsMade = 20,
+            ThreePointsAttempted = 45
+        };
+        var opponent = HealthyOpponent();
+
+        var metrics = CalculatedMetricsCalculator.Calculate(team);
+        Assert.Equal(0.40, metrics.FieldGoalPercentage, precision: 10);
+        Assert.Equal(0.50, metrics.EffectiveFieldGoalPercentage, precision: 10);
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.LowEffectiveFieldGoalPercentage, tags);
+    }
+
+    [Fact]
+    public void Evaluate_EffectiveFieldGoalPct_ReadsThresholdsFromProfile_NotHardcoded()
+    {
+        // Identical team shooting (eFG% = 18/40 = 0.45) judged against two
+        // different level-style profiles: lenient (EasyBasket_Default-like) vs.
+        // strict (Pro_Default-like). Proves the rule is profile-driven per level,
+        // not a hardcoded constant (unlike PerimeterDefenseProblem elsewhere in
+        // this engine).
+        var team = Healthy() with
+        {
+            FieldGoalsMade = 18,
+            FieldGoalsAttempted = 40,
+            ThreePointsMade = 0,
+            ThreePointsAttempted = 0
+        };
+        var opponent = HealthyOpponent();
+
+        var lenientProfile = new RulesProfile { OurLowEffectiveFieldGoalPct = 0.42, OurLowEffectiveFieldGoalPctAttemptsMin = 10 };
+        var strictProfile = new RulesProfile { OurLowEffectiveFieldGoalPct = 0.48, OurLowEffectiveFieldGoalPctAttemptsMin = 25 };
+
+        var lenientTags = _engine.Evaluate(team, opponent, lenientProfile);
+        var strictTags = _engine.Evaluate(team, opponent, strictProfile);
+
+        Assert.DoesNotContain(ProblemTag.LowEffectiveFieldGoalPercentage, lenientTags);
+        Assert.Contains(ProblemTag.LowEffectiveFieldGoalPercentage, strictTags);
+    }
+
+    [Fact]
+    public void Evaluate_EffectiveFieldGoalPct_CoOccursWithUnrelatedTags_WithoutDuplicationOrInterference()
+    {
+        // Low eFG% (well under 20 attempts minimum, so it fires) alongside a
+        // separately-triggered TurnoverProblem; FoulsProblem stays absent since
+        // nothing here drives a foul differential. Confirms the new rule composes
+        // cleanly with pre-existing, unrelated findings.
+        var opponent = HealthyOpponent();
+        var team = Healthy() with
+        {
+            FieldGoalsMade = 16,
+            FieldGoalsAttempted = 40,
+            ThreePointsMade = 0,
+            ThreePointsAttempted = 0,
+            Turnovers = opponent.Turnovers + 5
+        };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.LowEffectiveFieldGoalPercentage, tags);
+        Assert.Contains(ProblemTag.TurnoverProblem, tags);
+        Assert.DoesNotContain(ProblemTag.FoulsProblem, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
     }
 
     [Fact]

@@ -1,6 +1,7 @@
 ﻿using CoachHoopsAI.Domain.Compatibility;
 using CoachHoopsAI.Domain.Entities;
 using CoachHoopsAI.Domain.Enums;
+using CoachHoopsAI.Domain.Metrics;
 using ProblemTag = CoachHoopsAI.Domain.Enums.ProblemTag;
 
 namespace CoachHoopsAI.Domain.Rules
@@ -18,12 +19,25 @@ namespace CoachHoopsAI.Domain.Rules
             var opponentFieldGoalPct = LegacyPercentageBridge.FieldGoalPercentage(opponent);
             var opponentThreePointPct = LegacyPercentageBridge.ThreePointPercentage(opponent);
 
+            // Milestone 3's first rule to read the Milestone 2 calculated-metrics
+            // layer directly, instead of LegacyPercentageBridge - eFG% weights made
+            // three-pointers correctly, which raw FG% (above) does not.
+            var teamEffectiveFieldGoalPct = CalculatedMetricsCalculator.Calculate(team).EffectiveFieldGoalPercentage;
+
             // Offense
             if ((team.Turnovers - opponent.Turnovers) >= profile.TurnoverDiffToFlag)
                 tags.Add(ProblemTag.TurnoverProblem);
 
             if (teamThreePointPct <= profile.OurBadThreePct && team.ThreePointsAttempted >= profile.OurBadThreeAttemptsMin)
                 tags.Add(ProblemTag.OurShootingInefficiency);
+
+            // Minimum-attempts gate is required, not optional: CalculatedMetricsCalculator
+            // returns EffectiveFieldGoalPercentage == 0.0 when FieldGoalsAttempted == 0
+            // (Milestone 2A's zero-denominator convention), which would otherwise read as
+            // "maximally inefficient" for a team that simply hasn't shot yet.
+            if (team.FieldGoalsAttempted >= profile.OurLowEffectiveFieldGoalPctAttemptsMin
+                && teamEffectiveFieldGoalPct <= profile.OurLowEffectiveFieldGoalPct)
+                tags.Add(ProblemTag.LowEffectiveFieldGoalPercentage);
 
             if (team.ThreePointsAttempted >= profile.TooManyThreeAttemptsMin && teamThreePointPct <= profile.TooManyThreePctMax)
                 tags.Add(ProblemTag.TooManyThreePointAttempts);

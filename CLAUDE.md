@@ -13,8 +13,8 @@ Repository-specific instructions for AI-assisted development on CoachHoopsAI.
   M2B possession/cross-team metrics, M2C live estimated pace) is complete on
   `main`. Not yet tagged.
 - Verified 2026-09-18: `dotnet build CoachHoopsAI.sln` succeeds with no
-  errors; `dotnet test CoachHoopsAI.sln` passes 150 tests, 0 failed
-  (59 + 14 + 9 + 68 across the four test projects below). Treat this as a
+  errors; `dotnet test CoachHoopsAI.sln` passes 159 tests, 0 failed
+  (68 + 14 + 9 + 68 across the four test projects below). Treat this as a
   dated snapshot, not a permanent expected count - re-run rather than
   trusting this number as it ages.
 - Four test projects, no mocking framework, hand-written fakes only:
@@ -103,9 +103,10 @@ facts derived from raw stats, never rounded internally, never folded into
   original two-argument overload is unchanged and simply cannot produce
   `EstimatedPace` (no dummy timing is substituted to force a value).
 - Full formulas and null-semantics tables: `Docs/03-domain-and-rules.md`.
-- **None of M2A/B/C is wired into the rules engine, diagnostics, the LLM
-  prompt, Admin, persistence, or API responses yet.** That integration is
-  M3+ work - see "Next steps" below.
+- The first M3 rule (`LowEffectiveFieldGoalPercentage`, see below) now reads
+  M2A's `EffectiveFieldGoalPercentage` directly. Everything else in M2A/B/C
+  is still not wired into diagnostics, the LLM prompt, Admin, persistence, or
+  API responses - the rest of that integration is later M3 work.
 
 ## Compatibility boundary - do not disturb without a milestone decision
 
@@ -120,7 +121,10 @@ facts derived from raw stats, never rounded internally, never folded into
   replaces what the rules engine consumes.
 - The M2 calculated-metrics layer (`TeamCalculatedMetrics`/
   `GameCalculatedMetrics`) exists alongside `LegacyPercentageBridge`, not in
-  place of it - `StatRulesEngine` still reads only the bridge's two ratios.
+  place of it. `StatRulesEngine` still reads the bridge's two ratios for its
+  original (M1) rules; one new M3 rule (`LowEffectiveFieldGoalPercentage`)
+  additionally reads `CalculatedMetricsCalculator`'s eFG% - that is the only
+  rule migrated off the bridge so far, not a signal to migrate the rest yet.
 - `GameFormat`/`GameTiming` are captured and persisted but are **intentionally
   not yet consumed** by the rules engine, diagnostics, or the LLM prompt.
 
@@ -128,16 +132,33 @@ facts derived from raw stats, never rounded internally, never folded into
 
 - **M2** - calculated numerical basketball metrics (facts derived from raw
   stats). Complete: M2A, M2B, M2C.
-- **M3 (next)** - interpretation/findings/rules grounded in M2's calculated
-  metrics. Judgments and thresholds belong here, not M2.
+- **M3 (in progress)** - interpretation/findings/rules grounded in M2's
+  calculated metrics. Judgments and thresholds belong here, not M2. First
+  slice landed: `LowEffectiveFieldGoalPercentage`.
 - **M4** - sessions/snapshots.
 - **M5** - LLM/Admin integration built on the above.
 
 ## Next steps (M3)
 
-M3 should introduce findings/interpretation grounded in M2's calculated
+First slice complete: `LowEffectiveFieldGoalPercentage` (`StatRulesEngine`)
+flags a low team effective field-goal % (M2A), gated on a minimum
+field-goal-attempts sample size so a small/zero sample can't read as
+"inefficient." See `Docs/03-domain-and-rules.md`'s "Findings (Milestone 3)"
+section for the full reuse-vs-new-tag reasoning and threshold rationale.
+
+**`ProblemTag` additions must always be appended, never inserted.**
+`AnalysisRecord.ProblemTagsJson` persists tags as a raw integer array
+(`System.Text.Json`'s default enum encoding, read back by
+`ProblemTagDto.MapTag(int)` in `CoachHoopsAI.Admin`) - inserting a new member
+earlier in the enum reassigns the ordinals, and therefore the meaning, of
+every tag after it in already-persisted analysis records. (The API's own
+`AnalyzeGameResponse.ProblemTags` uses `.ToString()` instead and is
+unaffected by ordinal position - only the persisted history path is ordinal-
+sensitive.)
+
+Further M3 work should keep introducing findings grounded in M2's calculated
 metrics (`TeamCalculatedMetrics`/`GameCalculatedMetrics`), not on the legacy
-`LegacyPercentageBridge` percentages `StatRulesEngine` uses today.
+`LegacyPercentageBridge` percentages most of `StatRulesEngine` still uses.
 
 Before adding new findings, review the existing `ProblemTag` set
 (`CoachHoopsAI.Domain.Enums`) against what the current box-score model can

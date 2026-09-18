@@ -38,5 +38,16 @@ namespace CoachHoopsAI.Domain.Rules
         // Transition defense proxy
         public int LossByPointsToFlagTransition { get; set; } = 10;
         public int TurnoversMinToFlagTransition { get; set; } = 15;
+
+        // Overall shooting efficiency (effective field-goal %, Milestone 3) - current
+        // defaults, not universal basketball facts. eFG% credits three-pointers at
+        // 1.5x a two-pointer (matching CalculatedMetricsCalculator), so this
+        // threshold sits a little above the raw-FG%-based
+        // OurLowFieldGoalPctForOffensiveEfficiency threshold above, since a team
+        // that makes some threes will always read a few points higher on eFG% than
+        // on raw FG%. AttemptsMin exists so a handful of early-game attempts can't
+        // read as "inefficient" purely from a small-sample percentage.
+        public double OurLowEffectiveFieldGoalPct { get; set; } = 0.47;
+        public int OurLowEffectiveFieldGoalPctAttemptsMin { get; set; } = 20;
     }
 }

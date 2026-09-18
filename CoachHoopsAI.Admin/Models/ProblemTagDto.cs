@@ -20,6 +20,7 @@ public sealed class ProblemTagDto
         10 => "Transition Defense Problem",
         11 => "Fouls Problem",
         12 => "Pace Control Problem",
+        13 => "Low Effective Field Goal Percentage",
         _ => $"Unknown({value})"
     };
 }

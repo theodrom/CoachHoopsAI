@@ -53,7 +53,11 @@ It defines the concepts, language, and deterministic rules used to analyze games
   calculated symmetrically; an additional overload also taking
   `GameFormat`/`GameTiming` adds live estimated pace. Reuses
   CalculatedMetricsCalculator rather than duplicating it
-- No production consumer yet for M2A, M2B, or M2C
+- `StatRulesEngine`'s `LowEffectiveFieldGoalPercentage` rule (Milestone 3) is
+  the first production consumer of this layer, reading
+  `CalculatedMetricsCalculator`'s `EffectiveFieldGoalPercentage` directly; the
+  rest of M2A/M2B/M2C still has no consumer - see
+  `Docs/03-domain-and-rules.md`
 
 ---
 
