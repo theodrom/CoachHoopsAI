@@ -13,8 +13,8 @@ Repository-specific instructions for AI-assisted development on CoachHoopsAI.
   M2B possession/cross-team metrics, M2C live estimated pace) is complete on
   `main`. Not yet tagged.
 - Verified 2026-09-18: `dotnet build CoachHoopsAI.sln` succeeds with no
-  errors; `dotnet test CoachHoopsAI.sln` passes 176 tests, 0 failed
-  (85 + 14 + 9 + 68 across the four test projects below). Treat this as a
+  errors; `dotnet test CoachHoopsAI.sln` passes 188 tests, 0 failed
+  (94 + 14 + 12 + 68 across the four test projects below). Treat this as a
   dated snapshot, not a permanent expected count - re-run rather than
   trusting this number as it ages.
 - Four test projects, no mocking framework, hand-written fakes only:
@@ -103,9 +103,10 @@ facts derived from raw stats, never rounded internally, never folded into
   original two-argument overload is unchanged and simply cannot produce
   `EstimatedPace` (no dummy timing is substituted to force a value).
 - Full formulas and null-semantics tables: `Docs/03-domain-and-rules.md`.
-- Three M3 rules (`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
-  `OffensiveEfficiencyProblem`; see below) now read M2A/M2B's
-  `EffectiveFieldGoalPercentage`/`FreeThrowRate`/`OffensiveRating` directly.
+- Four M3 rules (`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
+  `OffensiveEfficiencyProblem`, `TooManyThreePointAttempts`; see below) now
+  read M2A/M2B's `EffectiveFieldGoalPercentage`/`FreeThrowRate`/
+  `OffensiveRating`/`ThreePointAttemptRate`/`ThreePointPercentage` directly.
   Everything else in M2A/B/C is still not wired into diagnostics, the LLM
   prompt, Admin, persistence, or API responses - the rest of that integration
   is later M3 work.
@@ -124,9 +125,10 @@ facts derived from raw stats, never rounded internally, never folded into
 - The M2 calculated-metrics layer (`TeamCalculatedMetrics`/
   `GameCalculatedMetrics`) exists alongside `LegacyPercentageBridge`, not in
   place of it. `StatRulesEngine` still reads the bridge's two ratios for its
-  original (M1) rules; three M3 rules (`LowEffectiveFieldGoalPercentage`,
-  `LowFreeThrowRate`, `OffensiveEfficiencyProblem`) additionally read
-  `GameCalculatedMetricsCalculator` directly - those are the only rules
+  original (M1) rules and for `OurShootingInefficiency`; four M3 rules
+  (`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
+  `OffensiveEfficiencyProblem`, `TooManyThreePointAttempts`) additionally
+  read `GameCalculatedMetricsCalculator` directly - those are the only rules
   migrated off the bridge so far, not a signal to migrate the rest yet.
 - `GameFormat`/`GameTiming` are captured and persisted but are **intentionally
   not yet consumed** by the rules engine, diagnostics, or the LLM prompt.
@@ -139,13 +141,15 @@ facts derived from raw stats, never rounded internally, never folded into
   calculated metrics. Judgments and thresholds belong here, not M2. Slices
   landed: `LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate` (replaces
   `LackOfPaintPressure`'s trigger), `OffensiveEfficiencyProblem` (refined
-  in place - same tag, `OffensiveRating`-based, no score-margin gate).
+  in place - same tag, `OffensiveRating`-based, no score-margin gate),
+  `TooManyThreePointAttempts` (refined in place - same tag, rate-based
+  volume gate instead of an absolute count).
 - **M4** - sessions/snapshots.
 - **M5** - LLM/Admin integration built on the above.
 
 ## Next steps (M3)
 
-Three slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
+Four slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
 (Milestone 3)" section for full rationale:
 
 - `LowEffectiveFieldGoalPercentage` (`StatRulesEngine`) flags a low team
@@ -182,9 +186,45 @@ Three slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
   dead fields from the old trigger
   (`LossByPointsToFlagOffensiveEfficiency`/`OurLowFieldGoalPctForOffensiveEfficiency`)
   were removed rather than left unused.
-- `AnalysisHistoryService.RulesetVersion` was bumped twice across these three
-  slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
-  `OffensiveEfficiencyProblem`) to mark each change.
+- `TooManyThreePointAttempts`'s volume gate was refined in place - same tag,
+  no new enum member. It previously required an **absolute** 3PA count
+  (`ThreePointsAttempted >= TooManyThreeAttemptsMin`); the same raw count
+  meant something different depending on total shot volume (30 of 60 shots
+  is half the offense, 30 of 100 is well under a third). It now reads
+  `ThreePointAttemptRate` (`3PA/FGA`, M2A) directly, gated on a
+  `FieldGoalsAttempted` minimum sample; the accuracy gate (`TooManyThreePctMax`)
+  is unchanged. **Important correction:** a high rate plus a below-threshold
+  `ThreePointPercentage` does not prove the shot mix scores worse than the
+  alternative - e.g. 30% from three is 0.9 points/attempt, which can still
+  beat that team's actual two-point efficiency, and this rule has no
+  two-point value to compare against. It is a coaching-judgment threshold,
+  not a verdict. The coach-facing label was changed accordingly to
+  "High Three Point Share With Low Three Point Percentage" (an observation).
+  The same substitution was later extended to the **LLM prompt**
+  (`OpenAiSuggestionClientHttp.LlmDescription`): the bare enum name
+  `TooManyThreePointAttempts` reads as a resolved verdict to a model that
+  only has the raw identifier to go on, so the prompt sends the neutral
+  phrase for this one tag instead - every other `ProblemTag`'s prompt value
+  is still its bare enum name. **The internal-identifier leak filter
+  (`ExposesInternalIdentifier`) was deliberately NOT changed to match** - it
+  still rejects the raw `TooManyThreePointAttempts` string if the model
+  produces it, and does not treat the neutral phrase as a leak, since that
+  phrase is the sanctioned coaching-language wording for this finding, not
+  an internal identifier; checking the transmitted description instead of
+  the raw name was tried and reverted, because it would have both missed a
+  genuine identifier leak and wrongly discarded valid suggestions for using
+  the approved wording. `ProblemTag.TooManyThreePointAttempts` keeps its
+  original name as the stable code/ordinal for the API response
+  (`AnalyzeGameMappings`) and persisted history
+  (`AnalysisRecord.ProblemTagsJson`) - **only its documented meaning was
+  corrected, not its literal spelling in those two places**; see
+  `Docs/02-api-contracts.md` for the API-consumer-facing note. Distinct from
+  `OurShootingInefficiency` (accuracy alone, no volume-share requirement) -
+  see `Docs/03-domain-and-rules.md` for the full comparison.
+- `AnalysisHistoryService.RulesetVersion` was bumped three times across
+  these four slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4`
+  for `OffensiveEfficiencyProblem`, `1.4` -> `1.5` for
+  `TooManyThreePointAttempts`) to mark each change.
 
 **`ProblemTag` additions must always be appended, never inserted.**
 `AnalysisRecord.ProblemTagsJson` persists tags as a raw integer array

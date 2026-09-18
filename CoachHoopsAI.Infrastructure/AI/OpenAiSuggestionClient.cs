@@ -152,10 +152,49 @@ namespace CoachHoopsAI.Infrastructure.AI
             return Enum.TryParse<SuggestionCategory>(category, ignoreCase: true, out var cat) ? cat : SuggestionCategory.Other;
         }
 
+        // The bare enum name doubles as this tag's LLM-facing description for every
+        // tag except this one. "TooManyThreePointAttempts" reads as a resolved
+        // verdict ("too many") to a model that has only the raw identifier to go
+        // on, but the trigger it names is a coaching-judgment threshold - a high
+        // three-point attempt share combined with a below-threshold three-point
+        // percentage, not proof that a different shot mix would have scored more
+        // (see Docs/03-domain-and-rules.md's "What the trigger does, and does not,
+        // establish"). The enum member/ordinal is unchanged for API and
+        // persistence stability (`AnalyzeGameMappings`, `AnalysisRecord.ProblemTagsJson`
+        // still emit/store the raw "TooManyThreePointAttempts" name) - only what
+        // this prompt shows the model changes. `ProblemTagDto`'s Admin label makes
+        // the same substitution for the same reason.
+        //
+        // This is deliberately a ONE-WAY substitution, used only when building the
+        // prompt - see ExposesInternalIdentifier below for why the leak filter must
+        // NOT also switch to checking this value.
+        private static string LlmDescription(ProblemTag tag) => tag switch
+        {
+            ProblemTag.TooManyThreePointAttempts => "High three-point share with low three-point percentage",
+            _ => tag.ToString()
+        };
+
         // Checks only the exact identifiers this request actually put in front of the
         // model (its ProblemTags and rules-profile name(s)) - not every ProblemTag
         // that exists - so natural coaching prose that happens to share a word with an
         // enum name (e.g. "turnover") is never mistaken for a leaked identifier.
+        //
+        // Deliberately checks tag.ToString() - the raw enum name - for every tag,
+        // including TooManyThreePointAttempts, even though LlmDescription (above)
+        // means that exact name is no longer what this request's prompt showed the
+        // model for that tag. Two separate concerns, two separate rules:
+        //   - What the prompt SENDS is the neutral phrase (LlmDescription), so the
+        //     model is never primed with the "too many" framing.
+        //   - What this filter REJECTS is the raw, code-shaped identifier
+        //     regardless of whether it was sent this time, because that identifier
+        //     is not coaching language and should never reach a coach if the model
+        //     produces it anyway (from general pattern-matching, echoing a
+        //     hypothetical instruction, etc).
+        // The neutral phrase itself is exactly the sanctioned way to describe this
+        // finding in coaching language, so it must NOT be treated as a leak - doing
+        // so would discard a valid suggestion for using the wording it was told to
+        // use. Checking LlmDescription(tag) here instead of tag.ToString() was tried
+        // and reverted for precisely that reason.
         private static bool ExposesInternalIdentifier(
             string generatedText,
             IReadOnlyCollection<ProblemTag> problemTags,
@@ -288,7 +327,7 @@ namespace CoachHoopsAI.Infrastructure.AI
                 coachNotes = string.IsNullOrWhiteSpace(input.Notes) ? null : input.Notes.Trim(),
                 team = input.Team,
                 opponent = input.Opponent,
-                problemTags = tags.Select(t => t.ToString()).ToArray(),
+                problemTags = tags.Select(LlmDescription).ToArray(),
                 diagnostics = diagnostics is null ? null : new
                 {
                     diagnostics.PointsDiff,

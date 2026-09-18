@@ -14,6 +14,7 @@ It allows CoachHoopsAI to integrate with external systems without affecting core
 - Enforces structured outputs via JSON Schema
 - Uses diagnostics and rule signals as AI grounding
 - Filters generated suggestions to prevent internal identifiers (ProblemTag names, rules-profile keys) from leaking into their text - see `Docs/08-ai-integration.md`
+- Substitutes a neutral description for `ProblemTag.TooManyThreePointAttempts` specifically before it reaches the prompt, since that bare enum name reads as a resolved verdict ("too many") rather than the coaching-judgment observation it actually is - see `Docs/03-domain-and-rules.md`
 - Includes a `FakeSuggestionClient` fallback (used when `Ai:Provider` isn't `OpenAI`) that always returns zero suggestions, so the system can run without a real API key
 
 ---

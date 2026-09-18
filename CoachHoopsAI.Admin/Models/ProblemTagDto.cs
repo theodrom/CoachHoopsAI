@@ -11,7 +11,13 @@ public sealed class ProblemTagDto
         1 => "Turnover Problem",
         2 => "Offensive Efficiency Problem", // ruleset 1.4 onward: OffensiveRating-based, no score-margin gate (see Docs/03-domain-and-rules.md)
         3 => "Our Shooting Inefficiency",
-        4 => "Too Many Three Point Attempts",
+        // Coach-facing label deliberately does not say "too many": a high
+        // three-point share combined with a below-threshold 3P% does not by
+        // itself prove that fewer three-point attempts would have scored more
+        // (see Docs/03-domain-and-rules.md). ProblemTag.TooManyThreePointAttempts
+        // (the code/ordinal, unchanged since ruleset 1.5's rate-based refinement)
+        // remains the stable identifier for historical records.
+        4 => "High Three Point Share With Low Three Point Percentage",
         5 => "Lack Of Paint Pressure", // retired ruleset 1.3 onward - StatRulesEngine no longer triggers this; kept for historical records
         6 => "Defensive Rebound Problem",
         7 => "Opponent Hot From Three",

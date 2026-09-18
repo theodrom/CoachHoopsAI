@@ -17,6 +17,18 @@ namespace CoachHoopsAI.Domain.Enums
         TurnoverProblem,
         OffensiveEfficiencyProblem,
         OurShootingInefficiency,
+
+        // Legacy identifier name, kept for API/persistence stability (see the
+        // ordinal-safety note below) even though it now overstates what the
+        // trigger establishes. High three-point share (ThreePointAttemptRate)
+        // combined with a below-threshold ThreePointPercentage is a
+        // coaching-judgment signal worth a look - it is NOT proof that a
+        // different shot mix would score more: e.g. 30% from three is 0.9 points
+        // per attempt, which can still exceed that team's actual two-point
+        // efficiency, and this rule has no two-point value to compare against.
+        // The Admin-facing label (ProblemTagDto) is phrased as an observation
+        // ("High Three Point Share With Low Three Point Percentage"), not this
+        // enum member's "too many" framing. See Docs/03-domain-and-rules.md.
         TooManyThreePointAttempts,
 
         // Retired as of ruleset 1.3 - StatRulesEngine no longer triggers this tag.

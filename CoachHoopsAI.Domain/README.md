@@ -54,11 +54,12 @@ It defines the concepts, language, and deterministic rules used to analyze games
   `GameFormat`/`GameTiming` adds live estimated pace. Reuses
   CalculatedMetricsCalculator rather than duplicating it
 - `StatRulesEngine`'s `LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
-  and `OffensiveEfficiencyProblem` rules (Milestone 3) are the production
-  consumers of this layer so far, reading `EffectiveFieldGoalPercentage`/
-  `FreeThrowRate`/`OffensiveRating` via `GameCalculatedMetricsCalculator`
-  directly; the rest of M2A/M2B/M2C still has no consumer - see
-  `Docs/03-domain-and-rules.md`
+  `OffensiveEfficiencyProblem`, and `TooManyThreePointAttempts` rules
+  (Milestone 3) are the production consumers of this layer so far, reading
+  `EffectiveFieldGoalPercentage`/`FreeThrowRate`/`OffensiveRating`/
+  `ThreePointAttemptRate`/`ThreePointPercentage` via
+  `GameCalculatedMetricsCalculator` directly; the rest of M2A/M2B/M2C still
+  has no consumer - see `Docs/03-domain-and-rules.md`
 - `LowFreeThrowRate` replaced `LackOfPaintPressure`'s trigger (fouls + score,
   with no defensible connection to what it claimed to measure); the
   `LackOfPaintPressure` enum member is kept, but `StatRulesEngine` no longer
@@ -67,6 +68,11 @@ It defines the concepts, language, and deterministic rules used to analyze games
   new enum member): it now reads `OffensiveRating` (points per 100 estimated
   possessions) with no score-margin gate, instead of raw FG% gated on losing
   by a margin - see `Docs/03-domain-and-rules.md`
+- `TooManyThreePointAttempts`'s trigger was refined in place (same tag, no
+  new enum member): its volume gate now reads `ThreePointAttemptRate`
+  (3PA/FGA) instead of an absolute 3PA count, with a `FieldGoalsAttempted`
+  minimum sample; the "shooting badly" gate (`TooManyThreePctMax`) is
+  unchanged - see `Docs/03-domain-and-rules.md`
 
 ---
 

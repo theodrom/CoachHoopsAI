@@ -22,7 +22,26 @@ namespace CoachHoopsAI.Domain.Rules
         public double OurBadThreePct { get; set; } = 0.30;
         public int OurBadThreeAttemptsMin { get; set; } = 15;
 
-        public int TooManyThreeAttemptsMin { get; set; } = 30;
+        // Milestone 3 refinement: the volume side of this finding is now a rate
+        // (3PA / FGA, M2A ThreePointAttemptRate) rather than an absolute count -
+        // the same raw 3PA count means something different depending on total shot
+        // volume (30 of 60 shots is a very different diet from 30 of 100).
+        // AttemptsMin (a FieldGoalsAttempted minimum, since the rate's denominator
+        // is FGA) mirrors the other M3 attempts-gates' per-level values and
+        // reasoning: a few early shots can't read as a high share from a trivial
+        // sample. TooManyThreePctMax (below) is unchanged and still required, but
+        // note what it does NOT establish: a high 3PA rate combined with a 3P% at
+        // or below this threshold is a coaching-judgment signal worth a look, not
+        // proof that a different shot mix would score more. E.g. 30% from three is
+        // 0.9 points per attempt, which can still exceed that same team's actual
+        // two-point efficiency - this rule has no data on two-point value to
+        // compare against, so it never makes that comparison. The
+        // ProblemTag.TooManyThreePointAttempts identifier is a legacy name kept
+        // for API/persistence stability; the coach-facing label
+        // (`ProblemTagDto`) is deliberately phrased as an observation, not a
+        // verdict - see Docs/03-domain-and-rules.md.
+        public double TooManyThreeAttemptRateMin { get; set; } = 0.40;
+        public int TooManyThreeAttemptRateAttemptsMin { get; set; } = 20;
         public double TooManyThreePctMax { get; set; } = 0.33;
 
         // Fouls

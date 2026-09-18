@@ -16,13 +16,13 @@ namespace CoachHoopsAI.Application.Services
         };
 
         // For V3.0 keep these constants in one place; later make them configurable.
-        // Bumped to 1.4: OffensiveEfficiencyProblem now reads OffensiveRating
-        // (points per 100 estimated possessions) with no score-margin gate, instead
-        // of raw FG% gated on losing by a margin - same ProblemTag, reused rather
-        // than retired, since the old trigger was a narrow proxy for the same
-        // concept this now measures directly (see Docs/03-domain-and-rules.md's
-        // "Findings (Milestone 3)" section, which also covers 1.3's changes).
-        private const string RulesetVersion = "1.4";
+        // Bumped to 1.5: TooManyThreePointAttempts now gates volume on
+        // ThreePointAttemptRate (3PA/FGA) instead of an absolute 3PA count, with a
+        // FieldGoalsAttempted minimum sample - same ProblemTag, reused rather than
+        // retired, since the old trigger was a narrower version of the same volume
+        // concept (see Docs/03-domain-and-rules.md's "Findings (Milestone 3)"
+        // section, which also covers 1.3's and 1.4's changes).
+        private const string RulesetVersion = "1.5";
         private const string PromptVersion = "v2.0";
 
         public AnalysisHistoryService(IGameAnalysisService analysisService, IAnalysisRepository repo)

@@ -59,13 +59,16 @@ documents what M2 *calculates*, not what any of it *means*.
 This is a separate concept from `LegacyPercentageBridge` above: the bridge is
 temporary scaffolding for the existing rules engine's two percentages, while
 `TeamCalculatedMetrics`/`GameCalculatedMetrics` are the new general-purpose
-calculated-metrics layer. As of the first Milestone 3 slice, `StatRulesEngine`
-reads exactly one field from this layer - `EffectiveFieldGoalPercentage`, for
-`LowEffectiveFieldGoalPercentage` (see "Findings (Milestone 3)" below).
-Everything else in M2A/M2B/M2C still has no production consumer - it is not
-wired into diagnostics, the LLM prompt, Admin, persistence, or API responses.
-Interpreting the rest of these numbers (is this pace good, is this rebound
-rate a problem) remains M3 scope and is not implemented yet.
+calculated-metrics layer. As of the fourth Milestone 3 slice, `StatRulesEngine`
+reads `EffectiveFieldGoalPercentage`, `FreeThrowRate`, `OffensiveRating`,
+`ThreePointAttemptRate`, and `ThreePointPercentage` from this layer, for
+`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
+`OffensiveEfficiencyProblem`, and `TooManyThreePointAttempts` respectively
+(see "Findings (Milestone 3)" below). Everything else in M2A/M2B/M2C still
+has no production consumer - it is not wired into diagnostics, the LLM
+prompt, Admin, persistence, or API responses. Interpreting the rest of these
+numbers (is this pace good, is this rebound rate a problem) remains M3 scope
+and is not implemented yet.
 
 ### M2A - single-team metrics
 
@@ -419,6 +422,130 @@ and the per-level values in `CoachHoopsAI.Api/appsettings.json`) are current
 defaults, not universal basketball facts - real offensive-rating baselines
 vary enormously by level and style of play, and these values are a starting
 point expected to evolve.
+
+### `TooManyThreePointAttempts` (refined, same tag)
+
+**Old trigger:**
+
+```text
+team.ThreePointsAttempted >= profile.TooManyThreeAttemptsMin
+  AND
+LegacyPercentageBridge.ThreePointPercentage(team) <= profile.TooManyThreePctMax
+```
+
+Gated volume on an **absolute** 3PA count (`TooManyThreeAttemptsMin`, 30 at
+Amateur). The same raw count means something different depending on total
+shot volume: 30 three-point attempts out of 60 total field-goal attempts is
+half the offense; 30 out of 100 is well under a third. An absolute count
+can't tell those apart.
+
+**New trigger:**
+
+```text
+team.FieldGoalsAttempted >= profile.TooManyThreeAttemptRateAttemptsMin
+  AND
+teamMetrics.ThreePointAttemptRate >= profile.TooManyThreeAttemptRateMin
+  AND
+teamMetrics.ThreePointPercentage <= profile.TooManyThreePctMax
+```
+
+`ThreePointAttemptRate` (`3PA / FGA`) and `ThreePointPercentage` (`3PM / 3PA`)
+are both M2A fields, already calculated by `CalculatedMetricsCalculator`
+before this milestone - this rule is the first to read either of them, and
+the second `TooManyThreePointAttempts`-family rule (after
+`LowEffectiveFieldGoalPercentage`/`LowFreeThrowRate`/`OffensiveEfficiencyProblem`)
+to move off `LegacyPercentageBridge`. `ThreePointPercentage`'s formula is
+identical to `LegacyPercentageBridge.ThreePointPercentage` - switching the
+source changes nothing about the "shooting badly" gate's behavior by itself.
+
+**The volume gate is now a rate, not a count; the quality gate is
+unchanged.** Reading `ThreePointAttemptRate` instead of a raw count makes the
+volume side relative to the team's own shot diet, rather than an arbitrary
+absolute number. `TooManyThreePctMax` (the accuracy requirement) was **not**
+touched.
+
+**Minimum field-goal-attempts gate**, mirroring the reasoning already used
+for `LowEffectiveFieldGoalPercentage`/`LowFreeThrowRate` above:
+`ThreePointAttemptRate`'s denominator is `FieldGoalsAttempted`, so a team
+that has only taken a handful of shots so far - including early in a live,
+in-progress game - could otherwise post an extreme rate (e.g. `2/2 = 1.0`)
+from a trivial sample. `TooManyThreeAttemptRateAttemptsMin` (current default
+20 at Amateur level) exists to prevent that.
+
+**What the trigger does, and does not, establish.** A high
+`ThreePointAttemptRate` combined with a `ThreePointPercentage` at or below
+`TooManyThreePctMax` is **not proof that a different shot mix would have
+scored more**. Three-point value is `3 * 3P%` points per attempt; at exactly
+the Amateur threshold (0.33), that is `0.99` points per attempt - and a team
+shooting, say, 30% from three (`0.90` points/attempt) can still be
+outscoring what that same team actually does on its two-point attempts. This
+rule has no data on the team's two-point value to compare against (nor does
+any calculated metric here establish which alternative shots the team would
+have taken instead), so it never makes that comparison, and no wording in
+this codebase should imply that it does. The trigger is a **coaching
+threshold worth a second look**, not a proven verdict that the shot
+selection was wrong.
+
+Because of this, every human- or model-facing surface for this tag is
+deliberately phrased as an **observation**, not a judgment - "High
+Three-Point Share With Low Three-Point Percentage," not "Too Many
+Three-Point Attempts" - while the `ProblemTag.TooManyThreePointAttempts`
+enum member keeps its original name regardless:
+
+- **Admin** (`ProblemTagDto.MapTag`) shows "High Three Point Share With Low
+  Three Point Percentage" as the display label for ordinal `4`.
+- **The LLM prompt** (`OpenAiSuggestionClientHttp.LlmDescription`) sends
+  "High three-point share with low three-point percentage" in place of the
+  bare enum name for this one tag - a model given only the raw identifier
+  `TooManyThreePointAttempts` has no way to know it's a judgment threshold
+  rather than a settled fact, so the substitution happens before the prompt
+  is built. Every other `ProblemTag`'s prompt value is still its bare enum
+  name (which, for the rest of the enum, already reads as a neutral fact).
+  This substitution is one-directional and prompt-only: the internal-identifier
+  leak filter (`ExposesInternalIdentifier`) deliberately keeps checking the raw
+  `TooManyThreePointAttempts` string, not the neutral phrase, for what it
+  rejects. Those are two different concerns - what the prompt *sends* the
+  model vs. what the filter *refuses to let through* - and conflating them
+  would either miss a genuine identifier leak (if the model reproduces the raw
+  name from general pattern-matching rather than by copying this prompt) or
+  wrongly discard a valid suggestion for using the neutral phrase, which is
+  the sanctioned coaching-language wording for this finding, not a leak.
+- **The API response** (`AnalyzeGameMappings.ToResponseDto`) and **persisted
+  history** (`AnalysisRecord.ProblemTagsJson`) are deliberately left
+  unchanged: they still emit/store the literal `TooManyThreePointAttempts`
+  name/ordinal. It is a legacy identifier consumers may already depend on,
+  and renaming it would either break that stability or require yet another
+  tag (see the ordinal-safety note above) - so its *documented* meaning is
+  corrected here and in `Docs/02-api-contracts.md` instead of its *literal*
+  spelling. An external API consumer reading only the raw string should
+  consult that documentation before treating the name at face value.
+
+**Why the same tag, not a new one.** Same test as the two decisions above:
+the old trigger (an absolute count paired with the same accuracy gate) was a
+narrower, less context-aware version of the same volume-plus-accuracy
+signal the new trigger measures more precisely - not something conceptually
+unrelated. `AnalysisHistoryService.RulesetVersion` was bumped (`1.4` ->
+`1.5`) to mark that the trigger changed.
+
+**Distinct from `OurShootingInefficiency`.** `OurShootingInefficiency` is
+about three-point *accuracy* alone (`3P% <= OurBadThreePct`, gated on a 3PA
+volume minimum) - it can fire on a team that barely shoots threes at all, as
+long as the handful they take mostly miss. `TooManyThreePointAttempts` is
+about three-point *reliance* - it only fires when threes make up a large
+share of the team's total shot diet (`ThreePointAttemptRate`), combined with
+a below-threshold accuracy. A team can be inefficient from three without
+shooting them often enough to trip the volume gate here, and a team can trip
+this rule without being as bad as `OurBadThreePct`'s stricter accuracy bar
+requires (the two percentage thresholds differ: `TooManyThreePctMax` 0.33
+vs. `OurBadThreePct` 0.30 at Amateur level) - the two findings can fire
+together, independently, or not at all. Neither finding compares against the
+team's two-point value either, for the same reason described above.
+
+Thresholds (`RulesProfile.TooManyThreeAttemptRateMin`/
+`TooManyThreeAttemptRateAttemptsMin`/`TooManyThreePctMax`, and the per-level
+values in `CoachHoopsAI.Api/appsettings.json`) are current defaults, not
+universal basketball facts - and, per the above, a coaching-judgment cutoff
+rather than a mathematically-derived break-even point.
 
 ## Philosophy
 

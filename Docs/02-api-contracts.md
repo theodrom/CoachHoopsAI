@@ -55,7 +55,17 @@ are calculated server-side from made/attempted counts where needed.
 ### Response fields (`AnalyzeGameResponse`)
 
 - `analysisId` (Guid of the persisted record)
-- `problemTags` (array of strings, e.g. `["TurnoverProblem", "FoulsProblem"]`)
+- `problemTags` (array of strings, e.g. `["TurnoverProblem", "FoulsProblem"]`).
+  These are the raw `ProblemTag` enum names, stable for any API consumer - but
+  `TooManyThreePointAttempts`'s literal name overstates what it means: it
+  fires on a high three-point attempt share combined with a below-threshold
+  three-point percentage, which is a coaching-judgment signal worth a look,
+  not proof that a different shot mix would have scored more (see
+  `Docs/03-domain-and-rules.md`). Its coach-facing display meaning - shown in
+  Admin, and used in place of the raw name when this tag is sent to the LLM -
+  is "High three-point share with low three-point percentage." The enum
+  name/ordinal in this API response is unchanged; only its documented meaning
+  differs from its literal wording.
 - `suggestions`: `{ offense: [...], defense: [...], other: [...] }`, each item `{ suggestion, reason }`
 - `diagnostics`: `{ pointsDiff, turnoversDiff, offensiveReboundsDiff, defensiveReboundsDiff, threePointPctDiff, threePointAttemptsDiff, foulsDiff, teamFieldGoalPercentage, opponentFieldGoalPercentage, fieldGoalPctDiff, appliedRulesProfile }`
 

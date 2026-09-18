@@ -219,13 +219,129 @@ public class StatRulesEngineTests
     [Fact]
     public void Evaluate_TooManyLowPercentageThreeAttempts_TriggersTooManyThreePointAttempts()
     {
-        // 3P 12/40 = 0.30 (<= TooManyThreePctMax 0.33), attempts 40 >= TooManyThreeAttemptsMin (30).
+        // FGA unchanged at Healthy()'s 60: rate = 40/60 = 0.667 (>= TooManyThreeAttemptRateMin
+        // 0.40), pct = 12/40 = 0.30 (<= TooManyThreePctMax 0.33), FGA 60 >= TooManyThreeAttemptRateAttemptsMin (20).
         var team = Healthy() with { ThreePointsMade = 12, ThreePointsAttempted = 40 };
         var opponent = HealthyOpponent();
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
         Assert.Contains(ProblemTag.TooManyThreePointAttempts, tags);
+    }
+
+    // Milestone 3: TooManyThreePointAttempts' volume gate is now a rate
+    // (ThreePointAttemptRate = 3PA/FGA, M2A) instead of an absolute 3PA count - the
+    // same raw count meant something different depending on total shot volume.
+    // TooManyThreePctMax (the "shooting badly" gate) is unchanged and still
+    // required, so a team taking a lot of threes AND making them is never flagged.
+    // Default profile (Amateur-tier): TooManyThreeAttemptRateMin = 0.40,
+    // TooManyThreeAttemptRateAttemptsMin = 20, TooManyThreePctMax = 0.33 (unchanged).
+
+    [Theory]
+    [InlineData(39, false)] // rate = 39/100 = 0.39, just below the 0.40 threshold
+    [InlineData(40, true)]  // rate = 40/100 = 0.40, at threshold (>=, boundary)
+    [InlineData(50, true)]  // rate = 50/100 = 0.50, above threshold
+    public void Evaluate_ThreePointAttemptRate_Boundary(int threePointsAttempted, bool expectTag)
+    {
+        // 3PM tracks 30% of 3PA throughout, keeping pct = 0.30 (<= 0.33) constant so
+        // only the rate varies across cases.
+        var team = Healthy() with
+        {
+            FieldGoalsAttempted = 100,
+            ThreePointsMade = (int)(threePointsAttempted * 0.3),
+            ThreePointsAttempted = threePointsAttempted
+        };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.TooManyThreePointAttempts));
+    }
+
+    [Theory]
+    [InlineData(19, false)] // FieldGoalsAttempted just below TooManyThreeAttemptRateAttemptsMin (20)
+    [InlineData(20, true)]  // at the minimum (boundary)
+    [InlineData(25, true)]  // above the minimum
+    public void Evaluate_ThreePointAttemptRate_InsufficientAttempts_DoesNotTrigger(int fieldGoalsAttempted, bool expectTag)
+    {
+        // 3PA is always 60% of FGA (rate = 0.60, comfortably above the 0.40
+        // threshold) and 3PM is always 30% of 3PA (pct = 0.30, comfortably below
+        // 0.33) at every case - only the sample size changes, proving the
+        // minimum-attempts gate (not the rate or the percentage) is what suppresses
+        // the tag below the cutoff. A few early shots in a live game can't trigger
+        // this purely from a trivial sample.
+        var threePointsAttempted = (int)(fieldGoalsAttempted * 0.6);
+        var team = Healthy() with
+        {
+            FieldGoalsAttempted = fieldGoalsAttempted,
+            ThreePointsMade = (int)(threePointsAttempted * 0.3),
+            ThreePointsAttempted = threePointsAttempted
+        };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.TooManyThreePointAttempts));
+    }
+
+    [Fact]
+    public void Evaluate_ThreePointAttemptRate_IdenticalAttemptsDifferentTotalShotVolume_ProducesDifferentResult()
+    {
+        // Identical 3PA (30) and identical 3PM (9, pct = 0.30 <= 0.33 both times) -
+        // only total FieldGoalsAttempted differs. This is exactly what the absolute-
+        // count-based old trigger could not distinguish: 30 threes out of 60 total
+        // shots (half the offense) is a very different signal from 30 out of 100
+        // (less than a third), even though the raw 3PA count is the same.
+        var smallShotDietTeam = Healthy() with { FieldGoalsAttempted = 60, ThreePointsMade = 9, ThreePointsAttempted = 30 };
+        var largeShotDietTeam = Healthy() with { FieldGoalsAttempted = 100, ThreePointsMade = 9, ThreePointsAttempted = 30 };
+        var opponent = HealthyOpponent();
+
+        var smallDietMetrics = CalculatedMetricsCalculator.Calculate(smallShotDietTeam);
+        var largeDietMetrics = CalculatedMetricsCalculator.Calculate(largeShotDietTeam);
+        Assert.Equal(0.50, smallDietMetrics.ThreePointAttemptRate, precision: 10);
+        Assert.Equal(0.30, largeDietMetrics.ThreePointAttemptRate, precision: 10);
+
+        var smallDietTags = _engine.Evaluate(smallShotDietTeam, opponent, _profile);
+        var largeDietTags = _engine.Evaluate(largeShotDietTeam, opponent, _profile);
+
+        Assert.Contains(ProblemTag.TooManyThreePointAttempts, smallDietTags);
+        Assert.DoesNotContain(ProblemTag.TooManyThreePointAttempts, largeDietTags);
+    }
+
+    [Fact]
+    public void Evaluate_ThreePointAttemptRate_HighVolumeButGoodShooting_DoesNotTrigger()
+    {
+        // High rate (30/60 = 0.50, above the 0.40 threshold) but good shooting
+        // (15/30 = 0.50, well above the 0.33 "bad shooting" cutoff) - proves the
+        // label is never applied purely for volume. A team shooting well from three
+        // is not an unsupported "too many" judgment, because the shooting-badly
+        // gate still has to hold too.
+        var team = Healthy() with { FieldGoalsAttempted = 60, ThreePointsMade = 15, ThreePointsAttempted = 30 };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.TooManyThreePointAttempts, tags);
+    }
+
+    [Fact]
+    public void Evaluate_ThreePointAttemptRate_ReadsThresholdsFromProfile_NotHardcoded()
+    {
+        // Identical team shooting (rate = 20/50 = 0.40, pct = 6/20 = 0.30) judged
+        // against two profiles that differ only in TooManyThreeAttemptRateMin -
+        // proves the volume threshold is profile-driven per level, not a hardcoded
+        // constant.
+        var team = Healthy() with { FieldGoalsAttempted = 50, ThreePointsMade = 6, ThreePointsAttempted = 20 };
+        var opponent = HealthyOpponent();
+
+        var lenientProfile = new RulesProfile { TooManyThreeAttemptRateMin = 0.45, TooManyThreeAttemptRateAttemptsMin = 10 };
+        var strictProfile = new RulesProfile { TooManyThreeAttemptRateMin = 0.35, TooManyThreeAttemptRateAttemptsMin = 10 };
+
+        var lenientTags = _engine.Evaluate(team, opponent, lenientProfile);
+        var strictTags = _engine.Evaluate(team, opponent, strictProfile);
+
+        Assert.DoesNotContain(ProblemTag.TooManyThreePointAttempts, lenientTags);
+        Assert.Contains(ProblemTag.TooManyThreePointAttempts, strictTags);
     }
 
     // Milestone 3: OffensiveEfficiencyProblem's old trigger (raw FG% <= threshold,

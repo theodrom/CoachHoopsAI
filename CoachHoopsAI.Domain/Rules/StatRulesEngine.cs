@@ -51,7 +51,26 @@ namespace CoachHoopsAI.Domain.Rules
                 && teamMetrics.FreeThrowRate <= profile.OurLowFreeThrowRate)
                 tags.Add(ProblemTag.LowFreeThrowRate);
 
-            if (team.ThreePointsAttempted >= profile.TooManyThreeAttemptsMin && teamThreePointPct <= profile.TooManyThreePctMax)
+            // Milestone 3 refinement: previously gated volume on an ABSOLUTE 3PA
+            // count, which meant the same raw count implied something different
+            // depending on total shot volume (30 of 60 shots is a very different
+            // diet from 30 of 100). Now reads ThreePointAttemptRate (3PA/FGA, M2A)
+            // directly, so the volume side is relative to the team's own shot diet.
+            // The ThreePointPercentage gate (TooManyThreePctMax) is unchanged, but
+            // does NOT prove this shot mix scores worse than the alternative: e.g.
+            // 30% from three is 0.9 points per attempt, which can still beat that
+            // team's actual two-point efficiency - this rule has no two-point value
+            // to compare against, so it never makes that comparison. The trigger is
+            // a coaching-judgment threshold, not proof a different mix would score
+            // more (see Docs/03-domain-and-rules.md); ProblemTag.TooManyThreePointAttempts
+            // is a legacy identifier kept for API/persistence stability, while the
+            // Admin-facing label is phrased as an observation, not a verdict. Also
+            // migrated ThreePointPercentage off LegacyPercentageBridge onto
+            // teamMetrics (M2A) - identical formula, no behavior change from that
+            // switch alone.
+            if (team.FieldGoalsAttempted >= profile.TooManyThreeAttemptRateAttemptsMin
+                && teamMetrics.ThreePointAttemptRate >= profile.TooManyThreeAttemptRateMin
+                && teamMetrics.ThreePointPercentage <= profile.TooManyThreePctMax)
                 tags.Add(ProblemTag.TooManyThreePointAttempts);
 
             // Milestone 3 refinement: previously required BOTH losing by a score

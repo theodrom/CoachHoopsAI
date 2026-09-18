@@ -175,4 +175,78 @@ public class OpenAiSuggestionClientIdentifierFilterTests
         var suggestion = Assert.Single(result);
         Assert.Equal("Contest every three-point attempt.", suggestion.Text);
     }
+
+    // 8. TooManyThreePointAttempts is the one tag whose bare enum name reads as a
+    // resolved verdict ("too many") rather than a neutral description, so the
+    // prompt substitutes a neutral phrase for it - proven here by inspecting the
+    // actual outgoing request, not just the response-filtering behavior the other
+    // tests cover.
+    [Fact]
+    public async Task PromptForTooManyThreePointAttempts_SendsNeutralDescription_NotTheRawEnumName()
+    {
+        // Canned reason deliberately avoids both the neutral phrase and the raw
+        // enum name, so neither of tests 9/10's concerns interferes with this
+        // test observing the outgoing request.
+        var body = ResponsesApiEnvelope.Build(("Offense", "Diversify shot selection.", "Shot selection could be more balanced."));
+        var capturingHandler = new FakeResponsesApiHandler(body);
+        var client = new OpenAiSuggestionClientHttp(
+            Microsoft.Extensions.Options.Options.Create(new OpenAiOptions { ApiKey = "test-key", Model = "test-model", BaseUrl = "http://localhost" }),
+            new HttpClient(capturingHandler));
+
+        await client.GetSuggestionsAsync(
+            CreateInput(),
+            new[] { ProblemTag.TooManyThreePointAttempts },
+            CreateDiagnostics("Amateur_Default"),
+            "Amateur_Default");
+
+        Assert.NotNull(capturingHandler.LastRequestBody);
+        Assert.Contains("High three-point share with low three-point percentage", capturingHandler.LastRequestBody);
+        Assert.DoesNotContain("TooManyThreePointAttempts", capturingHandler.LastRequestBody);
+    }
+
+    // 9. The neutral phrase is the sanctioned coaching-language description of
+    // this finding, not an internal identifier - a suggestion using it verbatim
+    // must be KEPT, not treated as a leak. (An earlier version of this filter
+    // checked the transmitted description instead of the raw enum name and would
+    // have wrongly discarded this suggestion; that approach was reverted.)
+    [Fact]
+    public async Task SuggestionUsingNeutralDescriptionForTooManyThreePointAttempts_IsAllowed()
+    {
+        var body = ResponsesApiEnvelope.Build(
+            ("Offense", "Work more two-point looks into the offense.",
+             "High three-point share with low three-point percentage."));
+        var client = CreateClient(body);
+
+        var result = await client.GetSuggestionsAsync(
+            CreateInput(),
+            new[] { ProblemTag.TooManyThreePointAttempts },
+            CreateDiagnostics("Amateur_Default"),
+            "Amateur_Default");
+
+        var suggestion = Assert.Single(result);
+        Assert.Equal("Work more two-point looks into the offense.", suggestion.Text);
+        Assert.Equal("High three-point share with low three-point percentage.", suggestion.Reason);
+    }
+
+    // 10. The raw enum name must still be rejected if the model produces it, even
+    // though this request's prompt never showed the model that string for this
+    // tag (test 8 proves it wasn't sent). The filter checks a static, code-shaped
+    // identifier, independent of what was actually transmitted.
+    [Fact]
+    public async Task SuggestionExposingRawEnumNameForTooManyThreePointAttempts_IsRemoved()
+    {
+        var body = ResponsesApiEnvelope.Build(
+            ("Offense", "Address TooManyThreePointAttempts immediately.", "Flagged by the rules engine."),
+            ("Offense", "Work more two-point looks into the offense.", "Three-point shooting has been inefficient at high volume."));
+        var client = CreateClient(body);
+
+        var result = await client.GetSuggestionsAsync(
+            CreateInput(),
+            new[] { ProblemTag.TooManyThreePointAttempts },
+            CreateDiagnostics("Amateur_Default"),
+            "Amateur_Default");
+
+        var suggestion = Assert.Single(result);
+        Assert.Equal("Work more two-point looks into the offense.", suggestion.Text);
+    }
 }
