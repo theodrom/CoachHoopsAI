@@ -8,13 +8,19 @@ Repository-specific instructions for AI-assisted development on CoachHoopsAI.
   complete. Tag: `milestone-0`.
 - Milestone 1 (game format/timing model + raw-count `TeamStats`, plus a
   follow-up persistence fix) is complete. Tags: `milestone-1`,
-  `milestone-1-persistence-fix` (HEAD).
-- `dotnet build CoachHoopsAI.sln` succeeds with no errors. `dotnet test
-  CoachHoopsAI.sln` passes: 127 tests, 0 failed (36 + 14 + 9 + 68 across the
-  four test projects below). Treat this count as a snapshot, not a target -
-  re-run rather than trusting this number as it ages.
+  `milestone-1-persistence-fix`.
+- Milestone 2 (calculated numerical basketball metrics - M2A team metrics,
+  M2B possession/cross-team metrics, M2C live estimated pace) is complete on
+  `main`. Not yet tagged.
+- Verified 2026-09-18: `dotnet build CoachHoopsAI.sln` succeeds with no
+  errors; `dotnet test CoachHoopsAI.sln` passes 150 tests, 0 failed
+  (59 + 14 + 9 + 68 across the four test projects below). Treat this as a
+  dated snapshot, not a permanent expected count - re-run rather than
+  trusting this number as it ages.
 - Four test projects, no mocking framework, hand-written fakes only:
-  - `CoachHoopsAI.Domain.Tests` - `StatRulesEngine` rules/boundaries, `GameFormat`/`GameTiming`.
+  - `CoachHoopsAI.Domain.Tests` - `StatRulesEngine` rules/boundaries,
+    `GameFormat`/`GameTiming`, and the M2 calculated-metrics calculators
+    (`CalculatedMetricsCalculator`, `GameCalculatedMetricsCalculator`).
   - `CoachHoopsAI.Application.Tests` - `GameAnalysisService`/`AnalysisHistoryService` orchestration and persisted-record building, via fakes for the rules engine, LLM client, profile provider, and repository.
   - `CoachHoopsAI.Api.Tests` - request/response mapping (`AnalyzeGameMappings`) and FluentValidation validators.
   - `CoachHoopsAI.Infrastructure.Tests` - the internal-identifier leak filter and `ModelName` on `OpenAiSuggestionClientHttp`, against a faked HTTP transport - **no real OpenAI calls**.
@@ -69,6 +75,38 @@ like they always described today's system.
   fields with sensible defaults (4x10, period 1, 10:00 remaining). See
   `Docs/02-api-contracts.md` and `Docs/06-validation.md`.
 
+## Milestone 2 — implemented architecture
+
+A new, separate calculated-metrics layer under `CoachHoopsAI.Domain.Metrics` -
+facts derived from raw stats, never rounded internally, never folded into
+`TeamStats`, legacy `GameDiagnostics`, or the rules engine.
+
+- **M2A** - `CalculatedMetricsCalculator.Calculate(TeamStats)` produces
+  `TeamCalculatedMetrics` from one side's raw counts alone: FG%/3P%/FT%,
+  total rebounds, eFG%, assist-to-turnover ratio (`null` when turnovers are
+  zero, never forced to `0`), 3PA rate, FT rate.
+- **M2B** - `GameCalculatedMetricsCalculator.Calculate(TeamStats team,
+  TeamStats opponent)` reuses M2A for each side, then adds possession- and
+  opponent-dependent fields to `TeamCalculatedMetrics`: `EstimatedPossessions`
+  (`FGA - OREB + TO + 0.44*FTA`), offensive rating, turnover rate, OREB%/
+  DREB%, steal rate, foul rate - all `null` when the relevant denominator is
+  zero. Team and Opponent are calculated symmetrically (swapping the two
+  arguments swaps the two outputs).
+- **M2C** - an overload, `Calculate(TeamStats team, TeamStats opponent,
+  GameFormat format, GameTiming timing)`, adds two game-level fields to
+  `GameCalculatedMetrics`: `GameEstimatedPossessions` (mean of the two
+  sides' `EstimatedPossessions`) and nullable `EstimatedPace`
+  (`GameEstimatedPossessions * RegulationDuration / ElapsedGameTime(format)`,
+  `null` when elapsed time is zero). Pace normalizes against
+  `GameFormat.RegulationDuration` even during overtime (`ElapsedGameTime`
+  already includes elapsed OT) - there is no separate "overtime pace". The
+  original two-argument overload is unchanged and simply cannot produce
+  `EstimatedPace` (no dummy timing is substituted to force a value).
+- Full formulas and null-semantics tables: `Docs/03-domain-and-rules.md`.
+- **None of M2A/B/C is wired into the rules engine, diagnostics, the LLM
+  prompt, Admin, persistence, or API responses yet.** That integration is
+  M3+ work - see "Next steps" below.
+
 ## Compatibility boundary - do not disturb without a milestone decision
 
 - The rules engine (`StatRulesEngine`) and diagnostics
@@ -80,41 +118,74 @@ like they always described today's system.
   **Do not expand it into the new calculated-metrics architecture, and do not
   remove or redesign it** until the later rules/findings milestone (M3)
   replaces what the rules engine consumes.
+- The M2 calculated-metrics layer (`TeamCalculatedMetrics`/
+  `GameCalculatedMetrics`) exists alongside `LegacyPercentageBridge`, not in
+  place of it - `StatRulesEngine` still reads only the bridge's two ratios.
 - `GameFormat`/`GameTiming` are captured and persisted but are **intentionally
   not yet consumed** by the rules engine, diagnostics, or the LLM prompt.
 
 ## Milestone roadmap
 
-- **M2** - calculated numerical basketball metrics (facts derived from raw stats).
-- **M3** - interpretation/findings/rules. Judgments and thresholds belong here, not M2.
+- **M2** - calculated numerical basketball metrics (facts derived from raw
+  stats). Complete: M2A, M2B, M2C.
+- **M3 (next)** - interpretation/findings/rules grounded in M2's calculated
+  metrics. Judgments and thresholds belong here, not M2.
 - **M4** - sessions/snapshots.
 - **M5** - LLM/Admin integration built on the above.
 
-## Agreed Milestone 2 direction
+## Next steps (M3)
 
-- M2 ships in small slices, not as one large change.
-- **M2A (next task)**: deterministic core metrics only.
-- **M2B**: possession/opponent-dependent metrics.
-- Live-sample confidence is a separate concern, handled after M2A/M2B.
-- Use sensible default basketball formulas that can evolve later - do not
-  overengineer configurability now (no premature profile/threshold system for
-  metric formulas).
-- Calculated metrics are a new, separate layer: do not fold them into raw
-  `TeamStats`, legacy `GameDiagnostics`, or the rules engine.
+M3 should introduce findings/interpretation grounded in M2's calculated
+metrics (`TeamCalculatedMetrics`/`GameCalculatedMetrics`), not on the legacy
+`LegacyPercentageBridge` percentages `StatRulesEngine` uses today.
+
+Before adding new findings, review the existing `ProblemTag` set
+(`CoachHoopsAI.Domain.Enums`) against what the current box-score model can
+actually establish. Several existing tags already claim causes the raw stats
+don't fully support - `RulesProfile` itself already labels some of the
+thresholds behind them as proxies (e.g. the fields behind
+`InteriorDefenseProblem` and `TransitionDefenseProblem`); `LackOfPaintPressure`
+has a similar gap, since `TeamStats` has no shot-location data. In
+particular: **`EstimatedPace` (M2C) measures tempo, but does not by itself
+establish `PaceControlProblem`** - turning a tempo number into a "pace is a
+problem" judgment needs a threshold/interpretation layer on top, which is M3
+scope, not something M2 already did.
+
+Two input edge cases surfaced during the M2 review are open questions, not
+confirmed defects or completed fixes - worth a decision before M3 relies on
+these values:
+
+- Box-score input that passes today's API validation can still produce a
+  negative `EstimatedPossessions` (no validation rule relates
+  `OffensiveRebounds` to `FieldGoalsAttempted`/`Turnovers`/`FreeThrowsAttempted`).
+- `GameTiming.ElapsedGameTime` has no defensive clamp for a clock value that
+  exceeds its period length; the API blocks this via a cross-field validator,
+  but a Domain/Application caller that builds `GameTiming` directly is not
+  protected the same way.
+
+Live-sample confidence (how much a metric like `EstimatedPace` should be
+trusted early in a game, before enough of it has been played) is also still
+an open, unaddressed concern - not resolved by M2A/M2B/M2C.
 
 ## Decisions that must survive a fresh conversation
 
-- Do not prematurely wire M2 calculations into rules, diagnostics, the LLM
-  prompt, Admin, persistence, or API responses - that integration is later
-  milestones' work.
+- M2's calculated metrics (complete: M2A/M2B/M2C) are not wired into rules,
+  diagnostics, the LLM prompt, Admin, persistence, or API responses - wiring
+  them in is M3+ work, not a leftover M2 task.
 - Do not introduce basketball judgments or thresholds while implementing
-  numerical metrics (M2 is facts; M3 is judgment).
+  numerical metrics (M2 is facts; M3 is judgment). This applies to any future
+  calculated-metric work, not just the completed M2A/B/C.
 - Do not round internally - compute at full precision; presentation/display
   owns formatting and rounding.
 - Preserve backward compatibility unless a milestone explicitly changes it.
   (The Milestone 1 raw-stat contract break was a one-time, explicitly-approved
   exception for a local-development app with no external consumers - it is
   not a standing policy to skip compatibility.)
+- Prefer sensible default formulas over a formula-configuration system for
+  new calculated metrics (this guided M2A/B/C). `RulesProfile`'s threshold
+  configurability is a separate, already-existing pattern meant for M3's
+  judgments - not a reason to add configurability to metric formulas
+  themselves.
 
 ## Architecture rules
 
