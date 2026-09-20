@@ -140,6 +140,25 @@ It defines the concepts, language, and deterministic rules used to analyze games
   wording (Admin label corrected from "Our Shooting Inefficiency" to "Low
   Three Point Percentage"; LLM prompt value substituted the same way
   `TooManyThreePointAttempts` already was) - see `Docs/03-domain-and-rules.md`
+- `TurnoverProblem`'s trigger was refined in place (same tag, no new enum
+  member): the original differential condition (`TurnoverDiffToFlag`) was
+  found directionally sound and is unchanged, but under-inclusive on its
+  own, since it can hide a real turnover problem when both teams turn it
+  over heavily - the same defect and fix shape as `FoulsProblem`. A second,
+  independent absolute-count condition (`TurnoverHighCountToFlag`) was OR'd
+  in to close that gap - a strict expansion, not a replacement. Deliberately
+  stayed in plain turnover-count terms rather than adopting
+  `TeamCalculatedMetrics.TurnoverRate` (M2B) - an explicit product decision
+  to keep the coach-facing finding as an understandable count; `TurnoverRate`
+  remains available for diagnostics/comparisons without being wired into
+  this rule. The differential is retained for backward compatibility and
+  relative imbalance, but is **not** normalized by elapsed time or
+  possessions (`StatRulesEngine.Evaluate` has no `GameFormat`/`GameTiming`
+  access) - it still permits an early 5-0 turnover result to fire at Amateur
+  level; early-live-game confidence remains an open, unresolved concern, not
+  something this refinement resolves. Admin label and LLM prompt wording
+  were reviewed and left unchanged - "Turnover Problem" does not misname
+  either branch of the expanded trigger - see `Docs/03-domain-and-rules.md`
 
 ---
 

@@ -1171,6 +1171,121 @@ enough to trip `TooManyThreePointAttempts`'s looser accuracy bar without
 being bad enough for this tag's stricter one, if the volume is also high
 enough. The two findings can fire together, independently, or not at all.
 
+### `TurnoverProblem` (refined, same tag)
+
+**Old trigger:**
+
+```text
+team.Turnovers - opponent.Turnovers >= profile.TurnoverDiffToFlag
+```
+
+A pure differential, with no absolute floor and no score condition.
+Per-level `TurnoverDiffToFlag`: EasyBasket 4, Youth 5, Amateur 5, Pro 4,
+Amateur_Development 7.
+
+**What this trigger already got right.** A turnover count directly supports
+a turnover-related finding - no inference is needed, the way raw FG% had to
+be connected to "interior defense" via an unsupported leap. The trigger
+reads no causal information (ball handling, passing, decision-making,
+opponent pressure) and no score - it was already a measured-result-only
+finding. This is the same shape, and the same "already sound" conclusion,
+as `FoulsProblem`'s review.
+
+**The gap: a differential-only trigger can hide a high turnover total when
+both teams turn it over frequently.** Reading only the *gap* between two
+counts means a genuinely turnover-heavy game on both sides never trips it:
+team 22 turnovers, opponent 19, diff 3 - below `TurnoverDiffToFlag` (5) at
+Amateur level - never fired, no matter how high the absolute total climbed,
+as long as the opponent kept pace. This is a real under-inclusion, not a
+hypothetical one, identical in shape to `FoulsProblem`'s.
+
+**The `TurnoverRate` question.** `TeamCalculatedMetrics.TurnoverRate` (M2B)
+exists: `team.Turnovers / teamPossessions` - turnovers per our *own*
+estimated possession, `null` only when `teamPossessions == 0` exactly, but
+(like every `EstimatedPossessions`-derived field) capable of a non-null,
+nonsensical *negative* rate if `teamPossessions` goes negative on invalid
+input - the same open validation gap `OffensiveEfficiencyProblem` already
+has to guard against. It was deliberately **not** adopted here, per an
+explicit product decision (not merely because it was untested or unneeded):
+
+- The coach-facing finding is meant to stay in understandable turnover
+  counts. A coach reads "we committed 22 turnovers" far more naturally than
+  "we turned it over at a rate of 0.28 per possession," and this finding's
+  whole value is being an immediately legible, literal count - the same
+  reasoning that kept `FoulsProblem` on `FoulsHighCountToFlag` instead of
+  `FoulRate`. Adopting `TurnoverRate` here would also import the
+  non-positive-possessions edge case for no offsetting benefit.
+- `TurnoverRate` is not being removed or deprecated - it remains available
+  in `TeamCalculatedMetrics`/`GameCalculatedMetrics` for diagnostics,
+  cross-team comparisons, or later internal analysis. It is simply not the
+  coach-facing signal for this particular finding.
+- The demonstrated gap (high totals on both sides) is fully solved within
+  the count domain by a second, independent condition - no rate or
+  possession math is needed to fix it.
+
+**Decision: refine in place - same tag, no new enum member.** A second,
+independent condition, `TurnoverHighCountToFlag`, was added: a plain
+absolute turnover count that fires regardless of the opponent's own total.
+It is OR'd with the unchanged differential, so this is a strict expansion,
+not a replacement - every input that fired before still fires; a new class
+of high-total-on-both-sides games now also fires. New trigger:
+
+```text
+(team.Turnovers - opponent.Turnovers) >= profile.TurnoverDiffToFlag
+  OR
+team.Turnovers >= profile.TurnoverHighCountToFlag
+```
+
+`TurnoverHighCountToFlag` per level (current defaults, not universal
+basketball facts, scaled loosely with level the same way `FoulsHighCountToFlag`
+was): EasyBasket 16, Youth 18, Amateur 20, Pro 22, Amateur_Development 19.
+These are **explicit project defaults chosen for this review, not a
+universal coaching standard** - free to be retuned later with real data.
+
+**The differential's low-absolute-total boundary is retained behavior, not
+sample protection - do not read it as one.** The differential branch cannot
+fire below `team.Turnovers == TurnoverDiffToFlag` (4-7 depending on level),
+since `diff = team - opponent <= team` whenever `opponent.Turnovers >= 0`.
+That arithmetic fact means, at Amateur level, an early **5-0** turnover
+result still triggers `TurnoverProblem` today, exactly as it did before this
+refinement - this was not changed, and this refinement does not fix it. As
+with `FoulsProblem`, a plain count isn't mathematically distorted by a small
+sample the way a percentage is (5 turnovers is exactly 5 turnovers, not an
+extrapolated figure), but that narrow arithmetic fact says nothing about
+whether 5 turnovers two minutes into a game is a result worth a coach's
+attention yet. `RulesetVersion` was bumped (`1.10` -> `1.11`) because the
+`TurnoverHighCountToFlag` expansion is an observable behavior change -
+inputs exist today that trigger `TurnoverProblem` under the new rule and did
+not under the old one - not because the differential's own behavior changed.
+
+**Live vs. final analyses; not normalized by elapsed time or possessions.**
+`StatRulesEngine.Evaluate` does not take `GameFormat`/`GameTiming` at all
+(an engine-wide limitation, not specific to this rule - see the
+Compatibility boundary section of `CLAUDE.md`), so neither condition in this
+trigger is aware of elapsed game time, and neither can distinguish a
+two-minute-old count from a full-game one. Comparing both teams' turnover
+counts at the same moment is not the same as accounting for how much of the
+game that moment represents - a five-turnover gap after five minutes is not
+equivalent to a five-turnover gap after forty, and this trigger cannot tell
+the two apart. This was true of the original differential before this
+review and remains true of the expanded rule after it; closing it would
+mean threading `GameFormat`/`GameTiming` through `StatRulesEngine.Evaluate`
+for every rule, a change well beyond the scope of this slice.
+Early-live-game confidence stays an open, general concern for this and
+every other count/rate-based `StatRulesEngine` rule.
+
+**Coach-facing wording.** "Turnover Problem" (the Admin label) and the bare
+`TurnoverProblem` enum name (sent to the LLM) were both reviewed against the
+expanded trigger and found to still fit: unlike `OurShootingInefficiency`'s
+old "Our Shooting Inefficiency" label, "turnover problem" does not misname
+what either branch of this trigger measures - a differential or an absolute
+count are both, literally, a turnover problem. Neither wording claims a
+cause (ball handling, passing, decision-making, opponent pressure), so
+neither needed the `TooManyThreePointAttempts`/`OurShootingInefficiency`
+style substitution. No Admin-label or LLM-prompt change was made;
+`ExposesInternalIdentifier` (the leak filter) needs no change either, since
+it already checks every tag's raw `tag.ToString()` generically.
+
 ## Philosophy
 
 Rules represent �coach-agreeable� heuristics, not absolute truth.

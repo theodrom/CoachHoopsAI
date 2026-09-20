@@ -8,8 +8,41 @@ namespace CoachHoopsAI.Domain.Rules
 {
     public class RulesProfile
     {
-        // Turnovers
+        // Turnovers (Milestone 3 reviewed - TurnoverDiffToFlag's differential
+        // trigger was found directionally sound and is unchanged;
+        // TurnoverHighCountToFlag was added alongside it, not to replace it). Both
+        // are current defaults, not universal basketball facts. TurnoverDiffToFlag
+        // flags a team committing meaningfully more turnovers than the opponent in
+        // the same game. It is retained as-is for backward compatibility and
+        // because it still detects a real relative imbalance - but it is NOT
+        // normalized by elapsed game time or possessions: comparing both teams at
+        // the same moment is not the same as accounting for how much of the game
+        // that moment represents, so a five-turnover gap after five minutes reads
+        // identically to a five-turnover gap after forty. StatRulesEngine.Evaluate
+        // has no access to GameFormat/GameTiming at all (an engine-wide limitation -
+        // see CLAUDE.md's Compatibility boundary section), so this cannot be fixed
+        // within this trigger alone; early-live-game confidence for this and every
+        // other count/rate-based rule remains an open, unresolved concern, not
+        // something this review closes. TurnoverHighCountToFlag flags a high
+        // absolute turnover total regardless of the opponent's own total, closing
+        // the specific gap where a turnover-heavy game on both sides (e.g. 22
+        // turnovers to 19) would otherwise never trigger the differential alone -
+        // its five per-level values are explicit project defaults chosen for this
+        // review, not a universal standard. Both fields are plain turnover counts -
+        // deliberately not TurnoverRate (turnovers per own estimated possession,
+        // M2B): a coach reads "18 turnovers" more naturally than an abstract rate,
+        // TurnoverRate's denominator carries the same non-positive-possessions edge
+        // case OffensiveRating already has to guard against, and this is a
+        // deliberate product decision to keep the coach-facing finding as an
+        // understandable count, not merely an oversight - TurnoverRate remains
+        // available (M2B) for diagnostics, comparisons, or later internal analysis
+        // without being wired into this rule. A high count/differential here is a
+        // measured result only - it does not identify why the turnovers happened
+        // (ball handling, passing, decision-making, opponent pressure, etc.);
+        // TeamStats has no data to support attributing a cause, and neither
+        // condition reads score.
         public int TurnoverDiffToFlag { get; set; } = 5;
+        public int TurnoverHighCountToFlag { get; set; } = 20;
 
         // Three-point defense
         public double OpponentHotThreePct { get; set; } = 0.38;

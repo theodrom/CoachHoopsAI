@@ -13,8 +13,8 @@ Repository-specific instructions for AI-assisted development on CoachHoopsAI.
   M2B possession/cross-team metrics, M2C live estimated pace) is complete on
   `main`. Not yet tagged.
 - Verified 2026-09-20: `dotnet build CoachHoopsAI.sln` succeeds with no
-  errors; `dotnet test CoachHoopsAI.sln` passes 256 tests, 0 failed
-  (159 + 14 + 15 + 68 across the four test projects below). Treat this as a
+  errors; `dotnet test CoachHoopsAI.sln` passes 267 tests, 0 failed
+  (170 + 14 + 15 + 68 across the four test projects below). Treat this as a
   dated snapshot, not a permanent expected count - re-run rather than
   trusting this number as it ages.
 - Four test projects, no mocking framework, hand-written fakes only:
@@ -175,13 +175,17 @@ facts derived from raw stats, never rounded internally, never folded into
   foul-count condition was added alongside it; deliberately not migrated to
   `FoulRate`), `OurShootingInefficiency` found sound as-is (same tag, no
   trigger change) with only its calculation source migrated and its
-  overclaiming "shooting" wording corrected to "Low Three Point Percentage."
+  overclaiming "shooting" wording corrected to "Low Three Point Percentage,"
+  `TurnoverProblem` refined in place (same tag - same defect and fix shape as
+  `FoulsProblem`: sound differential, under-inclusive alone, an absolute
+  turnover-count condition added alongside it; deliberately not migrated to
+  `TurnoverRate`, a coach-facing product decision).
 - **M4** - sessions/snapshots.
 - **M5** - LLM/Admin integration built on the above.
 
 ## Next steps (M3)
 
-Ten slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
+Eleven slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
 (Milestone 3)" section for full rationale:
 
 - `LowEffectiveFieldGoalPercentage` (`StatRulesEngine`) flags a low team
@@ -373,14 +377,15 @@ Ten slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
   general concern, not something this refinement closes.
   `FoulsHighCountToFlag`'s five per-level values are explicit project
   defaults chosen for this review, not a universal coaching standard.
-- `AnalysisHistoryService.RulesetVersion` was bumped eight times across these
-  ten slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
+- `AnalysisHistoryService.RulesetVersion` was bumped nine times across these
+  eleven slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
   `OffensiveEfficiencyProblem`, `1.4` -> `1.5` for `TooManyThreePointAttempts`,
   `1.5` -> `1.6` for `LowDefensiveReboundPercentage`, `1.6` -> `1.7` for
   `PerimeterDefenseProblem`'s retirement, `1.7` -> `1.8` for
   `InteriorDefenseProblem`'s retirement/replacement, `1.8` -> `1.9` for
   `TransitionDefenseProblem`'s retirement, `1.9` -> `1.10` for
-  `FoulsProblem`'s refinement) to mark each change.
+  `FoulsProblem`'s refinement, `1.10` -> `1.11` for `TurnoverProblem`'s
+  refinement) to mark each change.
 
 `OpponentHotFromThree` was reviewed against the same criteria and found
 already sound: a measured opponent shooting result gated on a minimum
@@ -416,6 +421,36 @@ ordinal means across history. Its percentage side was also migrated off
 `LegacyPercentageBridge` onto the M2A `ThreePointPercentage` (an identical
 formula), the same data-source migration pattern as `OpponentHotFromThree`.
 No trigger, threshold, tag, or `RulesetVersion` change was needed.
+
+`TurnoverProblem` was reviewed with the same defect this review already
+found and fixed for `FoulsProblem`: the differential trigger
+(`team.Turnovers - opponent.Turnovers >= TurnoverDiffToFlag`) was
+directionally sound (a turnover count directly supports a turnover finding,
+no causal or score input read) but under-inclusive, since it can hide a
+turnover-heavy game on both sides (e.g. 22 turnovers to 19, diff 3, never
+fired). Fixed identically: a second, independent absolute-count condition,
+`TurnoverHighCountToFlag`, was OR'd in - a strict expansion, everything that
+fired before still fires. Its five per-level values (EasyBasket 16, Youth
+18, Amateur 20, Pro 22, Amateur_Development 19) are explicit project
+defaults for this review, not a universal standard, scaled the same way
+`FoulsHighCountToFlag`'s were. `TeamCalculatedMetrics.TurnoverRate` (M2B,
+turnovers per own estimated possession) was deliberately **not** adopted -
+this was an explicit product decision, not an oversight: the coach-facing
+finding stays in understandable turnover counts, `TurnoverRate` remains
+available for diagnostics/comparisons/later analysis without being wired
+into this rule, and the demonstrated gap is fully solved within the count
+domain. The differential's retained low-absolute-total boundary (an early
+5-0 turnover result still fires at Amateur level, unchanged by this
+refinement) is **not** sample protection and **not** normalized by elapsed
+time or possessions - `StatRulesEngine.Evaluate` has no `GameFormat`/
+`GameTiming` access at all, so early-live-game confidence remains an open,
+unresolved concern for this and every other count/rate-based rule, exactly
+as documented for `FoulsProblem`. Admin label ("Turnover Problem") and the
+LLM prompt's bare enum name were reviewed and left unchanged: unlike
+`OurShootingInefficiency`'s old label, "turnover problem" does not misname
+either branch of the expanded trigger, so no wording substitution was
+needed. `RulesetVersion` was bumped (`1.10` -> `1.11`) because the
+`TurnoverHighCountToFlag` expansion is an observable behavior change.
 
 **`ProblemTag` additions must always be appended, never inserted.**
 `AnalysisRecord.ProblemTagsJson` persists tags as a raw integer array

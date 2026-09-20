@@ -55,7 +55,17 @@ namespace CoachHoopsAI.Application.Services
         // fire and a new class of high-total-on-both-sides games now also fires.
         // Deliberately stayed in plain foul-count terms rather than migrating to
         // FoulRate (M2B) - see Docs/03-domain-and-rules.md.
-        private const string RulesetVersion = "1.10";
+        // Bumped to 1.11: TurnoverProblem's differential-only trigger (unchanged,
+        // still fires exactly as before) was found under-inclusive for the same
+        // reason as 1.10's FoulsProblem change - it could hide a real turnover
+        // problem when both teams turn it over heavily. Added
+        // TurnoverHighCountToFlag, an absolute turnover-count condition OR'd with
+        // the existing differential, so previously-firing inputs still fire and a
+        // new class of high-total-on-both-sides games now also fires. Deliberately
+        // stayed in plain turnover-count terms rather than migrating to
+        // TurnoverRate (M2B) - a deliberate product decision, not an oversight -
+        // see Docs/03-domain-and-rules.md.
+        private const string RulesetVersion = "1.11";
         private const string PromptVersion = "v2.0";
 
         public AnalysisHistoryService(IGameAnalysisService analysisService, IAnalysisRepository repo)

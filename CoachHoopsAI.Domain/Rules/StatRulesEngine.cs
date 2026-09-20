@@ -28,7 +28,43 @@ namespace CoachHoopsAI.Domain.Rules
             var teamMetrics = gameMetrics.Team;
 
             // Offense
-            if ((team.Turnovers - opponent.Turnovers) >= profile.TurnoverDiffToFlag)
+            // Milestone 3 refinement: the original differential-only trigger
+            // (preserved below, unchanged) can hide a real turnover problem when
+            // both teams turn it over heavily - e.g. team 22 turnovers, opponent 19,
+            // diff 3, never fired despite a high absolute total. Added a second,
+            // independent absolute-count condition (TurnoverHighCountToFlag) that
+            // fires regardless of the opponent's total, catching that case without
+            // touching the differential's existing behavior - a strict expansion,
+            // not a replacement: everything that triggered before still triggers.
+            // Deliberately stays in plain turnover-count terms rather than adopting
+            // TeamCalculatedMetrics.TurnoverRate (M2B, turnovers per own estimated
+            // possession): this is a deliberate product decision, not an oversight -
+            // a coach reads "18 turnovers" far more naturally than an abstract
+            // per-possession rate, and the rate stays available for diagnostics,
+            // comparisons, or later internal analysis without being the coach-facing
+            // message here. TurnoverRate's denominator also carries the same
+            // non-positive-EstimatedPossessions edge case OffensiveEfficiencyProblem
+            // already has to guard against, for no benefit the count domain doesn't
+            // already provide. The differential branch is UNCHANGED and retained
+            // as-is for backward compatibility and because it still detects a real
+            // relative imbalance - it is NOT normalized by elapsed game time or
+            // possessions (StatRulesEngine.Evaluate has no GameFormat/GameTiming
+            // access at all), so it still permits an early 5-0 turnover read to
+            // trigger TurnoverProblem at Amateur level, exactly as before this
+            // refinement. That is a retained limitation, not sample protection:
+            // unlike a small-attempts percentage (mathematically distorted, e.g.
+            // 1-for-1 reading as a "perfect" 100%), a plain count isn't distorted by
+            // a small sample - 5 turnovers is exactly 5 turnovers - but this trigger
+            // still cannot tell an early, thin read from a full-game one;
+            // early-live-game confidence remains an open, unresolved concern (see
+            // Docs/03-domain-and-rules.md and CLAUDE.md). No score-margin input is
+            // used, by design: this finding reports a measured turnover count or
+            // disadvantage only, not why the turnovers happened (ball handling,
+            // passing, decision-making, opponent pressure, etc.).
+            // TurnoverHighCountToFlag's per-level values are explicit project
+            // defaults chosen for this review, not a universal coaching standard.
+            if ((team.Turnovers - opponent.Turnovers) >= profile.TurnoverDiffToFlag
+                || team.Turnovers >= profile.TurnoverHighCountToFlag)
                 tags.Add(ProblemTag.TurnoverProblem);
 
             // Milestone 3: migrated the percentage side off LegacyPercentageBridge onto

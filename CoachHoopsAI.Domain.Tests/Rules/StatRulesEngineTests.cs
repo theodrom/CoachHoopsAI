@@ -69,12 +69,198 @@ public class StatRulesEngineTests
     [InlineData(6, true)]  // > TurnoverDiffToFlag
     public void Evaluate_TurnoverDiff_Boundary(int diff, bool expectTag)
     {
-        var opponent = HealthyOpponent();
-        var team = Healthy() with { Turnovers = opponent.Turnovers + diff };
+        // opponent.Turnovers held at 0 (rather than HealthyOpponent's default 14)
+        // so team.Turnovers stays well below TurnoverHighCountToFlag (20) at every
+        // diff tested here - isolates the differential boundary from the
+        // absolute-count condition added below.
+        var opponent = HealthyOpponent() with { Turnovers = 0 };
+        var team = Healthy() with { Turnovers = diff };
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
         Assert.Equal(expectTag, tags.Contains(ProblemTag.TurnoverProblem));
+    }
+
+    // Milestone 3: TurnoverProblem's differential trigger (TurnoverDiffToFlag,
+    // tested above) was found directionally sound and is unchanged. It was found
+    // under-inclusive, though, for the same reason as FoulsProblem: it can hide a
+    // real turnover problem when both teams turn it over heavily, since only the
+    // GAP between the two counts is read, never the absolute total.
+    // TurnoverHighCountToFlag (a plain turnover count, not TurnoverRate) was added
+    // as a second, independent condition to close that gap - a strict expansion,
+    // not a replacement. Default profile (Amateur-tier): TurnoverDiffToFlag = 5,
+    // TurnoverHighCountToFlag = 20.
+
+    [Theory]
+    [InlineData(19, false)] // team.Turnovers just below TurnoverHighCountToFlag (20)
+    [InlineData(20, true)]  // at the threshold (boundary)
+    [InlineData(21, true)]  // above the threshold
+    public void Evaluate_TurnoverHighCount_Boundary(int teamTurnovers, bool expectTag)
+    {
+        // opponent.Turnovers held close to the team's count (17) throughout, so
+        // the differential never reaches TurnoverDiffToFlag (5) at any point
+        // tested - isolates the absolute-count boundary from the differential
+        // condition.
+        var opponent = HealthyOpponent() with { Turnovers = 17 };
+        var team = Healthy() with { Turnovers = teamTurnovers };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.TurnoverProblem));
+    }
+
+    [Fact]
+    public void Evaluate_HighTeamAndOpponentTurnoversWithSmallDifferential_TriggersTurnoverProblemViaAbsoluteCount()
+    {
+        // The exact kind of case the old, differential-only trigger missed: team
+        // 22 turnovers, opponent 19 turnovers - diff = 3, below TurnoverDiffToFlag
+        // (5), so the original rule would never have fired here despite a
+        // genuinely high team turnover total. TurnoverHighCountToFlag (20) catches
+        // it independently.
+        var opponent = HealthyOpponent() with { Turnovers = 19 };
+        var team = Healthy() with { Turnovers = 22 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.TurnoverProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_LargeTurnoverDifferentialWithLowAbsoluteTotal_RetainedFiveZeroBoundary_IsNotSampleProtection()
+    {
+        // Documents a deliberately RETAINED limitation, not a fix: the differential
+        // branch can never fire below team.Turnovers == TurnoverDiffToFlag (5 at
+        // Amateur level), since diff = team - opponent <= team whenever
+        // opponent.Turnovers >= 0. That means a 5-0 turnover read still triggers
+        // TurnoverProblem today, exactly as it did before this review - unchanged
+        // by the TurnoverHighCountToFlag addition above.
+        //
+        // This boundary must NOT be read as a minimum-sample gate the way
+        // AttemptsMin/PossessionsMin/OpportunitiesMin are elsewhere in this file.
+        // Those gates exist because a PERCENTAGE from a tiny denominator is
+        // mathematically distorted (1-for-1 reads as a "perfect" 100%, a number
+        // with no real meaning at that sample size) - the gate corrects a
+        // distortion. A plain COUNT has no equivalent distortion: 5 turnovers is
+        // exactly 5 turnovers, whether logged two minutes into a live game or
+        // across a full 40-minute final box score. What this trigger genuinely
+        // cannot do is tell those two cases apart, because
+        // StatRulesEngine.Evaluate has no GameFormat/GameTiming access at all - an
+        // early 5-0 read and a final 5-0 read are indistinguishable to it. The
+        // differential is retained here for backward compatibility and because it
+        // still detects a real relative imbalance, not because this boundary was
+        // judged safe from a live, early-game standpoint - that question
+        // (early-live-game confidence) is an open, unresolved concern this review
+        // explicitly does not close (see Docs/03-domain-and-rules.md and
+        // CLAUDE.md).
+        var opponent = HealthyOpponent() with { Turnovers = 0 };
+
+        var belowBoundary = Healthy() with { Turnovers = 4 };
+        Assert.DoesNotContain(ProblemTag.TurnoverProblem, _engine.Evaluate(belowBoundary, opponent, _profile));
+
+        var atBoundary = Healthy() with { Turnovers = 5 }; // the retained 5-0 case
+        Assert.Contains(ProblemTag.TurnoverProblem, _engine.Evaluate(atBoundary, opponent, _profile));
+    }
+
+    [Fact]
+    public void Evaluate_TurnoverProblem_ZeroTurnoversBothSides_DoesNotTrigger()
+    {
+        // Zero turnovers for both teams - representative of the very start of a
+        // live analysis. Neither condition can be satisfied from an empty sample.
+        var team = Healthy() with { Turnovers = 0 };
+        var opponent = HealthyOpponent() with { Turnovers = 0 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.TurnoverProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_TurnoverProblem_ReadsThresholdsFromProfile_NotHardcoded()
+    {
+        // Identical turnovers (team 18, opponent 17 - diff 1, well below any
+        // tested TurnoverDiffToFlag) judged against two profiles that differ only
+        // in TurnoverHighCountToFlag - proves the new absolute-count threshold is
+        // profile-driven per level, not a hardcoded constant.
+        var team = Healthy() with { Turnovers = 18 };
+        var opponent = HealthyOpponent() with { Turnovers = 17 };
+
+        var lenientProfile = new RulesProfile { TurnoverDiffToFlag = 5, TurnoverHighCountToFlag = 22 };
+        var strictProfile = new RulesProfile { TurnoverDiffToFlag = 5, TurnoverHighCountToFlag = 18 };
+
+        var lenientTags = _engine.Evaluate(team, opponent, lenientProfile);
+        var strictTags = _engine.Evaluate(team, opponent, strictProfile);
+
+        Assert.DoesNotContain(ProblemTag.TurnoverProblem, lenientTags);
+        Assert.Contains(ProblemTag.TurnoverProblem, strictTags);
+    }
+
+    [Fact]
+    public void Evaluate_TurnoverProblem_IndependentOfScoreMargin()
+    {
+        // Turnovers fire while comfortably winning, and stay silent while losing
+        // heavily with ordinary turnovers - proves neither condition reads score
+        // at all, in either direction.
+        var winningTeam = Healthy() with { Points = 100, Turnovers = 22 };
+        var losingOpponentButFewTurnovers = HealthyOpponent() with { Points = 60, Turnovers = 19 };
+        Assert.Contains(ProblemTag.TurnoverProblem, _engine.Evaluate(winningTeam, losingOpponentButFewTurnovers, _profile));
+
+        var losingTeam = Healthy() with { Points = 50 };
+        var winningOpponent = HealthyOpponent() with { Points = 100 };
+        Assert.DoesNotContain(ProblemTag.TurnoverProblem, _engine.Evaluate(losingTeam, winningOpponent, _profile));
+    }
+
+    [Fact]
+    public void Evaluate_TurnoverProblem_CoOccursWithUnrelatedFinding_WithoutDuplication()
+    {
+        // TurnoverProblem fires (via the new absolute-count branch) alongside a
+        // separately-triggered FoulsProblem.
+        var opponent = HealthyOpponent() with { Turnovers = 19 };
+        var team = Healthy() with { Turnovers = 22, PersonalFouls = 20, ThreePointsAttempted = 0, ThreePointsMade = 0 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.TurnoverProblem, tags);
+        Assert.Contains(ProblemTag.FoulsProblem, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
+    }
+
+    [Fact]
+    public void Evaluate_TurnoverProblem_DoesNotRequireTurnoverRate()
+    {
+        // Coach-facing product decision: this rule stays on plain turnover counts.
+        // TurnoverRate (M2B) can be null (denominator zero) or even meaningfully
+        // computable and still have no bearing on whether TurnoverProblem fires -
+        // proven here with a team whose EstimatedPossessions is exactly 0 (so
+        // TurnoverRate is null: EstimatedPossessions = FGA - OREB + TO + 0.44*FTA
+        // = 5 - 25 + 20 + 0 = 0) while the count-based trigger still fires cleanly.
+        var team = Healthy() with
+        {
+            FieldGoalsMade = 0,
+            FieldGoalsAttempted = 5,
+            ThreePointsAttempted = 0,
+            ThreePointsMade = 0,
+            OffensiveRebounds = 25,
+            FreeThrowsAttempted = 0,
+            Turnovers = 20
+        };
+        var opponent = HealthyOpponent() with { Turnovers = 17 };
+
+        var metrics = GameCalculatedMetricsCalculator.Calculate(team, opponent).Team;
+        Assert.Equal(0.0, metrics.EstimatedPossessions, precision: 10);
+        Assert.Null(metrics.TurnoverRate);
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.TurnoverProblem, tags);
+    }
+
+    [Fact]
+    public void ProblemTag_OffenseSectionOrdinal_TurnoverProblemUnchangedByRefinement()
+    {
+        // Locks TurnoverProblem's persistence-sensitive ordinal - refining a
+        // trigger in place must never shift it or any neighboring tag's ordinal.
+        Assert.Equal(1, (int)ProblemTag.TurnoverProblem);
+        Assert.Equal(2, (int)ProblemTag.OffensiveEfficiencyProblem);
     }
 
     [Fact]
