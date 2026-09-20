@@ -52,12 +52,17 @@ Every sample was rewritten for the Milestone 1 contract:
 
 **Expected ProblemTags:**
 - TurnoverProblem
-- TransitionDefenseProblem
 - OffensiveEfficiencyProblem
+
+(Milestone 3 retired `TransitionDefenseProblem` - its trigger read only score
+margin and an absolute team-turnover count, with no fast-break,
+points-off-turnovers, or possession-sequencing data connecting a turnover to
+the opponent scoring off it. This sample's stats still satisfy
+`TurnoverProblem`'s own differential-based rule, so that expectation is
+unchanged.)
 
 Purpose:
 - Tests turnover differential
-- Tests transition defense heuristic
 - Tests offensive efficiency when losing by a large margin
 
 ---

@@ -1060,11 +1060,12 @@ public class StatRulesEngineTests
     public void ProblemTag_DefenseSectionOrdinals_RemainStableAfterRetirement()
     {
         // Locks the persistence-sensitive ordinals around PerimeterDefenseProblem
-        // (retired ruleset 1.7) and InteriorDefenseProblem (retired ruleset 1.8) -
-        // AnalysisRecord.ProblemTagsJson stores these as raw ints, so retiring a tag
-        // must never shift its own ordinal or its neighbors'. Includes the two
-        // earlier retirements (ruleset 1.3/1.6) for the same reason, plus the newly
-        // appended replacement tag's ordinal.
+        // (retired ruleset 1.7), InteriorDefenseProblem (retired ruleset 1.8), and
+        // TransitionDefenseProblem (retired ruleset 1.9) - AnalysisRecord.ProblemTagsJson
+        // stores these as raw ints, so retiring a tag must never shift its own
+        // ordinal or its neighbors'. Includes the two earlier retirements (ruleset
+        // 1.3/1.6) for the same reason, plus the newly appended replacement tag's
+        // ordinal.
         Assert.Equal(5, (int)ProblemTag.LackOfPaintPressure);
         Assert.Equal(6, (int)ProblemTag.DefensiveReboundProblem);
         Assert.Equal(7, (int)ProblemTag.OpponentHotFromThree);
@@ -1075,15 +1076,91 @@ public class StatRulesEngineTests
         Assert.Equal(16, (int)ProblemTag.HighOpponentEffectiveFieldGoalPercentage);
     }
 
+    // Milestone 3: TransitionDefenseProblem's old trigger (opponent.Points -
+    // team.Points >= LossByPointsToFlagTransition && team.Turnovers >=
+    // TurnoversMinToFlagTransition, both fields removed) read only score margin
+    // and an absolute team-turnover count. TeamStats has no fast-break points,
+    // points-off-turnovers, live/dead-ball turnover distinction, possession
+    // sequencing, or shot-timing data connecting a turnover to the opponent
+    // scoring off it, let alone in transition specifically. The only measurable
+    // fact it used - elevated team turnovers - is already covered by
+    // TurnoverProblem, so it is retired outright with no replacement tag.
+
     [Fact]
-    public void Evaluate_LosingByEnoughWithHighTurnovers_TriggersTransitionDefenseProblem()
+    public void Evaluate_LosingByEnoughWithHighTurnovers_NoLongerTriggersTransitionDefenseProblem()
     {
+        // The exact scenario that used to trigger the retired rule.
         var team = Healthy() with { Points = 65, Turnovers = 16 };
         var opponent = HealthyOpponent() with { Points = 80 }; // +15 margin
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
-        Assert.Contains(ProblemTag.TransitionDefenseProblem, tags);
+        Assert.DoesNotContain(ProblemTag.TransitionDefenseProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_HighTeamTurnoversAlone_DoesNotTriggerRetiredTransitionDefenseProblem()
+    {
+        // Team turnovers far exceed the old, retired TurnoversMinToFlagTransition
+        // (15), but the team is not losing by any margin (Healthy's 80 points vs.
+        // HealthyOpponent's 78 - we are actually ahead). Confirms turnovers alone,
+        // however high, never emit the retired tag under any input now.
+        var team = Healthy() with { Turnovers = 30 };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.TransitionDefenseProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_LargeNegativeScoreMarginAlone_DoesNotTriggerRetiredTransitionDefenseProblem()
+    {
+        // A 40-point deficit - far beyond the old, retired
+        // LossByPointsToFlagTransition (10) - with turnovers held at Healthy's
+        // ordinary baseline (12, well below the old 15 minimum). Confirms score
+        // margin alone, however large, never emits the retired tag.
+        var team = Healthy() with { Points = 50 };
+        var opponent = HealthyOpponent() with { Points = 90 }; // +40 margin
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.TransitionDefenseProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_HighTurnoversAndLargeNegativeMarginCombined_StillDoesNotTriggerRetiredTransitionDefenseProblem()
+    {
+        // Both of the old trigger's conditions satisfied simultaneously, and more
+        // extremely than the original scenario above - the strongest possible
+        // regression check that the retired rule never fires again, regardless of
+        // how strongly its old inputs point toward it.
+        var team = Healthy() with { Points = 50, Turnovers = 30 };
+        var opponent = HealthyOpponent() with { Points = 90 }; // +40 margin
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.TransitionDefenseProblem, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
+    }
+
+    [Fact]
+    public void Evaluate_TurnoverProblem_StillTriggersUnderItsOwnRule_WithTransitionDefenseProblemRetiredAndAbsent()
+    {
+        // team.Turnovers - opponent.Turnovers = 20 - 14 = 6 (>= TurnoverDiffToFlag,
+        // 5) - TurnoverProblem's own, unaffected differential rule. Score margin
+        // stays at Healthy/HealthyOpponent's ordinary baseline (we are actually
+        // ahead, 80 to 78), isolating the turnover signal from any score condition.
+        // Confirms TurnoverProblem is untouched by this retirement and that no
+        // duplicate or resurrected tag appears alongside it.
+        var team = Healthy() with { Turnovers = 20 };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.TurnoverProblem, tags);
+        Assert.DoesNotContain(ProblemTag.TransitionDefenseProblem, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
     }
 
     [Theory]

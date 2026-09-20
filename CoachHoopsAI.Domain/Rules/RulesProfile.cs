@@ -44,10 +44,6 @@ namespace CoachHoopsAI.Domain.Rules
         // Fouls
         public int FoulsDiffToFlag { get; set; } = 5;
 
-        // Transition defense proxy
-        public int LossByPointsToFlagTransition { get; set; } = 10;
-        public int TurnoversMinToFlagTransition { get; set; } = 15;
-
         // Overall shooting efficiency (effective field-goal %, Milestone 3) - current
         // defaults, not universal basketball facts. eFG% credits three-pointers at
         // 1.5x a two-pointer (matching CalculatedMetricsCalculator). AttemptsMin

@@ -13,8 +13,8 @@ Repository-specific instructions for AI-assisted development on CoachHoopsAI.
   M2B possession/cross-team metrics, M2C live estimated pace) is complete on
   `main`. Not yet tagged.
 - Verified 2026-09-20: `dotnet build CoachHoopsAI.sln` succeeds with no
-  errors; `dotnet test CoachHoopsAI.sln` passes 226 tests, 0 failed
-  (132 + 14 + 12 + 68 across the four test projects below). Treat this as a
+  errors; `dotnet test CoachHoopsAI.sln` passes 230 tests, 0 failed
+  (136 + 14 + 12 + 68 across the four test projects below). Treat this as a
   dated snapshot, not a permanent expected count - re-run rather than
   trusting this number as it ages.
 - Four test projects, no mocking framework, hand-written fakes only:
@@ -163,13 +163,16 @@ facts derived from raw stats, never rounded internally, never folded into
   just a weaker, non-profile-driven trigger),
   `HighOpponentEffectiveFieldGoalPercentage` (replaces `InteriorDefenseProblem`'s
   trigger - unlike `PerimeterDefenseProblem`, this signal was not already
-  covered elsewhere, so it was replaced rather than retired outright).
+  covered elsewhere, so it was replaced rather than retired outright),
+  `TransitionDefenseProblem` retired with no replacement tag (its only
+  measurable content - elevated team turnovers - was already covered by
+  `TurnoverProblem`).
 - **M4** - sessions/snapshots.
 - **M5** - LLM/Admin integration built on the above.
 
 ## Next steps (M3)
 
-Seven slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
+Eight slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
 (Milestone 3)" section for full rationale:
 
 - `LowEffectiveFieldGoalPercentage` (`StatRulesEngine`) flags a low team
@@ -311,12 +314,29 @@ Seven slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
   `OpponentHighEffectiveFieldGoalPctAttemptsMin` is unchanged from its
   original design and still mirrors `OurLowEffectiveFieldGoalPctAttemptsMin`'s
   per-level attempts minimums.
-- `AnalysisHistoryService.RulesetVersion` was bumped six times across these
-  seven slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
+- `TransitionDefenseProblem` is **retired with no replacement tag**. Its
+  trigger (`opponent.Points - team.Points >= LossByPointsToFlagTransition &&
+  team.Turnovers >= TurnoversMinToFlagTransition`, both fields removed) read
+  only score margin and an absolute team-turnover count. `TeamStats` has no
+  fast-break points, points-off-turnovers, live/dead-ball turnover
+  distinction, possession-sequencing, or shot-timing data to connect a
+  turnover to the opponent scoring off it, let alone in transition
+  specifically - a turnover creates an opportunity, not proof of a converted
+  possession, and score margin has many causes unrelated to transition
+  defense. The only measurable fact the trigger used - elevated team
+  turnovers - is already covered by `TurnoverProblem`'s own,
+  already-reviewed, differential-based rule (`team.Turnovers -
+  opponent.Turnovers >= TurnoverDiffToFlag`), which is unchanged by this
+  retirement. Same pattern as `PerimeterDefenseProblem`: the measurable
+  content is redundant with an existing finding, so nothing replaces it -
+  no renamed turnover- or score-margin-based tag was added.
+- `AnalysisHistoryService.RulesetVersion` was bumped seven times across these
+  eight slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
   `OffensiveEfficiencyProblem`, `1.4` -> `1.5` for `TooManyThreePointAttempts`,
   `1.5` -> `1.6` for `LowDefensiveReboundPercentage`, `1.6` -> `1.7` for
   `PerimeterDefenseProblem`'s retirement, `1.7` -> `1.8` for
-  `InteriorDefenseProblem`'s retirement/replacement) to mark each change.
+  `InteriorDefenseProblem`'s retirement/replacement, `1.8` -> `1.9` for
+  `TransitionDefenseProblem`'s retirement) to mark each change.
 
 `OpponentHotFromThree` was reviewed against the same criteria and found
 already sound: a measured opponent shooting result gated on a minimum
@@ -345,10 +365,9 @@ metrics (`TeamCalculatedMetrics`/`GameCalculatedMetrics`), not on the legacy
 Before adding new findings, review the existing `ProblemTag` set
 (`CoachHoopsAI.Domain.Enums`) against what the current box-score model can
 actually establish. Several remaining tags still claim causes the raw stats
-don't fully support - `RulesProfile` itself already labeled the field behind
-the now-retired `InteriorDefenseProblem` a proxy before this review retired
-it; `TransitionDefenseProblem`'s trigger is a comparable candidate for a
-future slice, still unreviewed as of this writing. In particular:
+don't fully support - `RulesProfile` itself already labeled the fields behind
+the now-retired `InteriorDefenseProblem` and `TransitionDefenseProblem` as
+proxies before this review retired both. In particular:
 **`EstimatedPace` (M2C) measures tempo, but does not by itself establish
 `PaceControlProblem`** - turning a tempo number into a "pace is a problem"
 judgment needs a threshold/interpretation layer on top, which is M3 scope,

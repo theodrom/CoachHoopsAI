@@ -94,7 +94,24 @@ namespace CoachHoopsAI.Domain.Enums
         // full rationale.
         InteriorDefenseProblem,
 
+        // Retired as of ruleset 1.9 - StatRulesEngine no longer triggers this tag.
+        // Its original trigger (opponent leading by a score margin AND team
+        // turnovers at or above an absolute count) read only score and team
+        // turnovers; TeamStats has no fast-break points, points-off-turnovers,
+        // live/dead-ball turnover distinction, possession sequencing, or
+        // shot-timing data to connect a turnover to the opponent scoring off it,
+        // let alone in transition specifically, or to isolate "our transition
+        // defense" as the cause of a score deficit. The only measurable fact in
+        // the old trigger - elevated team turnovers - is already covered by
+        // TurnoverProblem above; retired outright rather than reused or replaced,
+        // since a corrected trigger would just restate TurnoverProblem's signal
+        // under a causally-loaded name, the same pattern as PerimeterDefenseProblem
+        // above. Kept defined, never removed, so already-persisted analysis
+        // records containing this ordinal keep displaying correctly (see the
+        // ordinal-safety note below). See Docs/03-domain-and-rules.md for the full
+        // rationale and what data a real transition-defense finding would need.
         TransitionDefenseProblem,
+
         FoulsProblem,
 
         // Game control

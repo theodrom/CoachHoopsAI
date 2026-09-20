@@ -40,7 +40,14 @@ namespace CoachHoopsAI.Application.Services
         // HighOpponentEffectiveFieldGoalPercentage, reading the opponent's
         // EffectiveFieldGoalPercentage (M2A via M2B) with a real FieldGoalsAttempted
         // minimum, distinct from OpponentHotFromThree's three-point-specific signal.
-        private const string RulesetVersion = "1.8";
+        // Bumped to 1.9: TransitionDefenseProblem is retired with no replacement tag
+        // - its trigger (score margin AND an absolute team-turnover count) read no
+        // fast-break, points-off-turnovers, or possession-sequencing data connecting
+        // a turnover to the opponent scoring off it, and the only measurable fact it
+        // used (elevated team turnovers) is already covered by TurnoverProblem. Same
+        // pattern as 1.7's PerimeterDefenseProblem: the measurable part is redundant
+        // with an existing finding, so nothing replaces it.
+        private const string RulesetVersion = "1.9";
         private const string PromptVersion = "v2.0";
 
         public AnalysisHistoryService(IGameAnalysisService analysisService, IAnalysisRepository repo)

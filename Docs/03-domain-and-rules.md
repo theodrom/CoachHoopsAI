@@ -891,6 +891,78 @@ needs no such substitution either, since `StatRulesEngine` never emits it for
 new analyses - it only appears in already-persisted history, which is never
 re-sent to the LLM.
 
+### `TransitionDefenseProblem` (retired, no replacement)
+
+**Old trigger:**
+
+```text
+opponent.Points - team.Points >= profile.LossByPointsToFlagTransition
+  AND
+team.Turnovers >= profile.TurnoversMinToFlagTransition
+```
+
+`RulesProfile` itself already labeled the two fields behind this trigger
+`// Transition defense proxy` - an acknowledged approximation, the same
+pattern as the retired `InteriorDefenseProblem`'s `// "Interior defense"
+proxy` comment.
+
+**What data this trigger actually reads:** `opponent.Points`, `team.Points`,
+and `team.Turnovers` - nothing else. `TeamStats` was audited for any data
+that could connect a turnover to the opponent scoring off it: fast-break
+points, points off turnovers, a live-ball vs. dead-ball turnover
+distinction, possession sequencing, or shot-timing data. None of it exists,
+for either a final or a live analysis. A turnover creates a transition
+*opportunity* - it does not, by itself, establish that the opponent
+converted that specific possession, let alone in transition as opposed to
+a reset half-court possession. Score margin supplies no missing evidence
+either: a team can be down 10+ points with 15+ turnovers for many reasons
+unrelated to transition defense (cold shooting, a hot opponent, foul
+trouble, poor free-throw shooting, and so on), and the trigger has no way
+to isolate which of those actually happened.
+
+**The measurable part is redundant with an existing finding.** The only
+fact this trigger reads beyond score - elevated team turnovers - is already
+flagged by `TurnoverProblem`
+(`team.Turnovers - opponent.Turnovers >= TurnoverDiffToFlag`), a
+differential-based rule already reviewed and left in place earlier in this
+document. `TransitionDefenseProblem` added an absolute turnover-count
+condition (a strictly less precise measure than a differential, since it
+ignores how many turnovers the opponent also committed) plus a score-margin
+gate that, per the paragraph above, supplies no causal information a coach
+could act on specifically for transition defense.
+
+**Decision: retired outright, no replacement tag.** Same test as
+`PerimeterDefenseProblem`'s retirement: does the trigger's measurable
+content add anything beyond what an existing, already-reviewed finding
+already covers? Here it does not - `TurnoverProblem` already surfaces
+excessive turnovers, under a more defensible (differential, not absolute)
+formula. Renaming or narrowing the trigger to a turnover-only check would
+just restate `TurnoverProblem`'s signal under a different, causally-loaded
+name ("transition defense" implies the opponent's fast break beat us down
+the floor, which this data cannot show). Instead:
+
+- `StatRulesEngine` no longer triggers `TransitionDefenseProblem` under any
+  input. The enum member is kept, never removed, so existing analysis
+  records that contain it (persisted as the raw ordinal `10`) keep
+  resolving to a real label instead of `Unknown(10)` in Admin.
+- `RulesProfile.LossByPointsToFlagTransition`/`TurnoversMinToFlagTransition`,
+  the old trigger's only fields, were removed rather than left unused.
+- `AnalysisHistoryService.RulesetVersion` was bumped (`1.8` -> `1.9`) to mark
+  that the active rule set changed under these records.
+- `TurnoverProblem` is unchanged by this retirement - it was not modified,
+  and no renamed turnover- or score-margin-based tag was added to replace
+  `TransitionDefenseProblem`, since that observation is already covered.
+
+**What would a real transition-defense finding need?** At minimum, one of:
+fast-break points allowed (a direct scoring-in-transition count), points
+allowed off turnovers (linking specific opponent possessions to our
+turnovers), or a live-ball/dead-ball turnover split (since only a live-ball
+turnover - a steal or a bad pass, as opposed to an out-of-bounds violation -
+can actually produce a fast break). `TeamStats` has none of these today, for
+either a final box score or a live in-game snapshot; adding this finding
+properly would require extending the input model, not just re-deriving a
+threshold from data already on hand.
+
 ## Philosophy
 
 Rules represent �coach-agreeable� heuristics, not absolute truth.

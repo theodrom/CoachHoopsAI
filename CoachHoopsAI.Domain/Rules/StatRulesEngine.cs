@@ -144,9 +144,26 @@ namespace CoachHoopsAI.Domain.Rules
             // removed, so already-persisted analysis records keep displaying
             // correctly. See Docs/03-domain-and-rules.md.
 
-            if ((opponent.Points - team.Points) >= profile.LossByPointsToFlagTransition && team.Turnovers >= profile.TurnoversMinToFlagTransition)
-                tags.Add(ProblemTag.TransitionDefenseProblem);
-
+            // Retired as of ruleset 1.9 - StatRulesEngine no longer triggers
+            // TransitionDefenseProblem. Its old trigger
+            // (opponent.Points - team.Points >= LossByPointsToFlagTransition &&
+            // team.Turnovers >= TurnoversMinToFlagTransition) read only team
+            // turnovers and score margin. TeamStats has no fast-break points,
+            // points-off-turnovers, live/dead-ball turnover distinction, possession
+            // sequencing, or shot-timing data - nothing that connects a turnover to
+            // the opponent actually scoring off it, let alone in transition
+            // specifically, and nothing that isolates "our transition defense" as
+            // the cause of a score deficit rather than any of the many other
+            // explanations (cold shooting, a hot opponent, foul trouble, etc.). The
+            // only measurable fact in the old trigger - elevated team turnovers - is
+            // already flagged by TurnoverProblem above (a differential-based,
+            // already-reviewed rule); this trigger added nothing but an unsupported
+            // causal label on top of that same signal plus a score-margin condition
+            // that supplies no missing evidence. Retired outright, no replacement
+            // tag, same pattern as PerimeterDefenseProblem above: the measurable
+            // part is redundant with an existing finding, not a distinct signal
+            // worth a new tag. See Docs/03-domain-and-rules.md for the full
+            // rationale and what data a real transition-defense finding would need.
             if (team.PersonalFouls - opponent.PersonalFouls >= profile.FoulsDiffToFlag)
                 tags.Add(ProblemTag.FoulsProblem);
 

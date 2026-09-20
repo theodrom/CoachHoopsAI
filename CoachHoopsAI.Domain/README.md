@@ -101,6 +101,15 @@ It defines the concepts, language, and deterministic rules used to analyze games
   (three-point shooting specifically vs. overall shot-profile efficiency).
   The `InteriorDefenseProblem` enum member is kept, but `StatRulesEngine` no
   longer triggers it - see `Docs/03-domain-and-rules.md`
+- `TransitionDefenseProblem` is retired with **no replacement tag**: its old
+  trigger read only score margin and an absolute team-turnover count, with no
+  fast-break, points-off-turnovers, live/dead-ball turnover distinction,
+  possession-sequencing, or shot-timing data connecting a turnover to the
+  opponent scoring off it. The only measurable fact it used - elevated team
+  turnovers - is already covered by `TurnoverProblem`'s own differential-based
+  rule (unchanged by this retirement). The `TransitionDefenseProblem` enum
+  member is kept, but `StatRulesEngine` no longer triggers it - see
+  `Docs/03-domain-and-rules.md`
 
 ---
 
