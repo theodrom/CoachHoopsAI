@@ -89,6 +89,199 @@ public class StatRulesEngineTests
         Assert.Contains(ProblemTag.OurShootingInefficiency, tags);
     }
 
+    // Milestone 3: OurShootingInefficiency's trigger was reviewed and found sound
+    // despite its broad name - it reads three-point percentage only
+    // (ThreePointsMade/ThreePointsAttempted), never overall FG%/eFG%, gated on a
+    // real 3PA minimum sample. Preserved as-is (same tag, same ordinal, same
+    // thresholds); only its calculation source (migrated off LegacyPercentageBridge
+    // onto teamMetrics.ThreePointPercentage, M2A - an identical formula, no
+    // behavior change, no RulesetVersion bump) and its coach-facing wording (Admin
+    // label + LLM prompt value, now "Low Three Point Percentage"/"Low three-point
+    // percentage" instead of the overclaiming "Our Shooting Inefficiency") changed.
+    // Default profile (Amateur-tier): OurBadThreePct = 0.30, OurBadThreeAttemptsMin = 15.
+
+    [Theory]
+    [InlineData(7, false)] // 3P 7/20 = 0.35, above OurBadThreePct (0.30)
+    [InlineData(6, true)]  // 3P 6/20 = 0.30, at threshold (<=, boundary)
+    [InlineData(5, true)]  // 3P 5/20 = 0.25, below threshold
+    public void Evaluate_OurShootingInefficiency_PercentageBoundary(int made, bool expectTag)
+    {
+        var team = Healthy() with { ThreePointsMade = made, ThreePointsAttempted = 20 };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.OurShootingInefficiency));
+    }
+
+    [Theory]
+    [InlineData(14, false)] // attempts just below OurBadThreeAttemptsMin (15)
+    [InlineData(15, true)]  // at the minimum (boundary)
+    [InlineData(20, true)]  // above the minimum
+    public void Evaluate_OurShootingInefficiency_MinimumAttemptsBoundary(int attempts, bool expectTag)
+    {
+        // made held at 20% of attempts throughout (comfortably below the 0.30
+        // percentage threshold), so only the sample size varies - proves the
+        // minimum-attempts gate, not the percentage, is what suppresses the tag
+        // below the cutoff.
+        var made = (int)(attempts * 0.2);
+        var team = Healthy() with { ThreePointsMade = made, ThreePointsAttempted = attempts };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.OurShootingInefficiency));
+    }
+
+    [Fact]
+    public void Evaluate_OurShootingInefficiency_ZeroAttempts_DoesNotTrigger()
+    {
+        // ThreePointsAttempted == 0 drives ThreePointPercentage to 0.0 (M2A's
+        // zero-denominator convention - never null for this field), which alone is
+        // below the threshold; the minimum-attempts gate excludes it independently
+        // either way, so a team that hasn't attempted a three yet can never read as
+        // shooting them badly.
+        var team = Healthy() with { ThreePointsMade = 0, ThreePointsAttempted = 0 };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.OurShootingInefficiency, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OurShootingInefficiency_ReadsTeamStats_NotOpponentStats()
+    {
+        // The opponent's three-point shooting has no bearing on this finding: an
+        // ice-cold opponent (0.20) does not trigger it while our team shoots well,
+        // and a red-hot opponent (0.60) does not suppress it while our team shoots
+        // badly.
+        var goodTeam = Healthy() with { ThreePointsMade = 8, ThreePointsAttempted = 20 }; // 0.40
+        var coldOpponent = HealthyOpponent() with { ThreePointsMade = 4, ThreePointsAttempted = 20 }; // 0.20
+        Assert.DoesNotContain(ProblemTag.OurShootingInefficiency, _engine.Evaluate(goodTeam, coldOpponent, _profile));
+
+        var badTeam = Healthy() with { ThreePointsMade = 5, ThreePointsAttempted = 20 }; // 0.25
+        var hotOpponent = HealthyOpponent() with { ThreePointsMade = 12, ThreePointsAttempted = 20 }; // 0.60
+        Assert.Contains(ProblemTag.OurShootingInefficiency, _engine.Evaluate(badTeam, hotOpponent, _profile));
+    }
+
+    [Fact]
+    public void Evaluate_OurShootingInefficiency_ReadsThresholdsFromProfile_NotHardcoded()
+    {
+        // Identical shooting (3P 5/20 = 0.25) judged against two profiles that
+        // differ only in OurBadThreePct - proves the threshold is profile-driven
+        // per level, not a hardcoded constant.
+        var team = Healthy() with { ThreePointsMade = 5, ThreePointsAttempted = 20 };
+        var opponent = HealthyOpponent();
+
+        var lenientProfile = new RulesProfile { OurBadThreePct = 0.20, OurBadThreeAttemptsMin = 10 };
+        var strictProfile = new RulesProfile { OurBadThreePct = 0.30, OurBadThreeAttemptsMin = 10 };
+
+        var lenientTags = _engine.Evaluate(team, opponent, lenientProfile);
+        var strictTags = _engine.Evaluate(team, opponent, strictProfile);
+
+        Assert.DoesNotContain(ProblemTag.OurShootingInefficiency, lenientTags);
+        Assert.Contains(ProblemTag.OurShootingInefficiency, strictTags);
+    }
+
+    [Fact]
+    public void Evaluate_OurShootingInefficiency_IndependentOfLowEffectiveFieldGoalPercentage_LowThreePointPctAlone()
+    {
+        // Bad three-point shooting (4/16 = 0.25) but strong two-point shooting
+        // keeps overall eFG% well above the 0.47 threshold: eFG% = (32 + 0.5*4) /
+        // 60 = 0.567. Proves OurShootingInefficiency can fire without
+        // LowEffectiveFieldGoalPercentage - the two rules read genuinely different
+        // metrics (3P% alone vs. eFG% across the whole shot profile).
+        var team = Healthy() with { FieldGoalsMade = 32, FieldGoalsAttempted = 60, ThreePointsMade = 4, ThreePointsAttempted = 16 };
+        var opponent = HealthyOpponent();
+
+        var metrics = CalculatedMetricsCalculator.Calculate(team);
+        Assert.Equal(0.25, metrics.ThreePointPercentage, precision: 10);
+        Assert.True(metrics.EffectiveFieldGoalPercentage > _profile.OurLowEffectiveFieldGoalPct);
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.OurShootingInefficiency, tags);
+        Assert.DoesNotContain(ProblemTag.LowEffectiveFieldGoalPercentage, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OurShootingInefficiency_IndependentOfLowEffectiveFieldGoalPercentage_LowEfgAloneWithInsufficientThreePointVolume()
+    {
+        // Poor overall shooting (eFG% = (20 + 0.5*1) / 50 = 0.41, <= the 0.47
+        // threshold) but only 5 three-point attempts - well under
+        // OurBadThreeAttemptsMin (15) - so OurShootingInefficiency's gate blocks it
+        // regardless of the 3P% (1/5 = 0.20, which would otherwise qualify).
+        // Proves LowEffectiveFieldGoalPercentage can fire without
+        // OurShootingInefficiency.
+        var team = Healthy() with { FieldGoalsMade = 20, FieldGoalsAttempted = 50, ThreePointsMade = 1, ThreePointsAttempted = 5 };
+        var opponent = HealthyOpponent();
+
+        var metrics = CalculatedMetricsCalculator.Calculate(team);
+        Assert.Equal(0.41, metrics.EffectiveFieldGoalPercentage, precision: 10);
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.LowEffectiveFieldGoalPercentage, tags);
+        Assert.DoesNotContain(ProblemTag.OurShootingInefficiency, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OurShootingInefficiency_IndependentOfTooManyThreePointAttempts_LowThreePointShareAlone()
+    {
+        // 3P 4/16 = 0.25 (<= OurBadThreePct 0.30, attempts 16 >= OurBadThreeAttemptsMin
+        // 15) - but the three-point attempt rate (16/60 = 0.267) is well below
+        // TooManyThreeAttemptRateMin (0.40), so TooManyThreePointAttempts' volume
+        // gate never engages regardless of the accuracy. Proves the two rules are
+        // independent: bad accuracy alone, without a high share of the shot diet,
+        // trips only this one.
+        var team = Healthy() with { FieldGoalsMade = 24, FieldGoalsAttempted = 60, ThreePointsMade = 4, ThreePointsAttempted = 16 };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.OurShootingInefficiency, tags);
+        Assert.DoesNotContain(ProblemTag.TooManyThreePointAttempts, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OurShootingInefficiency_IndependentOfTooManyThreePointAttempts_HighShareAloneTriggersOnlyThatRule()
+    {
+        // 3P 16/50 = 0.32 sits in the band between OurBadThreePct (0.30, exclusive)
+        // and TooManyThreePctMax (0.33, inclusive) at Amateur level - too accurate
+        // to count as "bad" for this rule, but still below TooManyThreePointAttempts'
+        // looser accuracy bar. Combined with a high attempt rate (50/100 = 0.50 >=
+        // TooManyThreeAttemptRateMin 0.40, attempts 100 >= 20), only
+        // TooManyThreePointAttempts fires.
+        var team = Healthy() with { FieldGoalsMade = 40, FieldGoalsAttempted = 100, ThreePointsMade = 16, ThreePointsAttempted = 50 };
+        var opponent = HealthyOpponent();
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.TooManyThreePointAttempts, tags);
+        Assert.DoesNotContain(ProblemTag.OurShootingInefficiency, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OurShootingInefficiency_CoOccursWithUnrelatedFinding_WithoutDuplication()
+    {
+        // OurShootingInefficiency fires alongside a separately-triggered
+        // TurnoverProblem, with no duplicate tags in the result.
+        var opponent = HealthyOpponent();
+        var team = Healthy() with
+        {
+            ThreePointsMade = 4,
+            ThreePointsAttempted = 16,
+            Turnovers = opponent.Turnovers + 5
+        };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.OurShootingInefficiency, tags);
+        Assert.Contains(ProblemTag.TurnoverProblem, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
+    }
+
     // Milestone 3: LowEffectiveFieldGoalPercentage reads TeamCalculatedMetrics'
     // EffectiveFieldGoalPercentage (M2A) directly, not LegacyPercentageBridge.
     // Default profile (Amateur-tier): OurLowEffectiveFieldGoalPct = 0.47,

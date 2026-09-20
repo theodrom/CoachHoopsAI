@@ -249,4 +249,75 @@ public class OpenAiSuggestionClientIdentifierFilterTests
         var suggestion = Assert.Single(result);
         Assert.Equal("Work more two-point looks into the offense.", suggestion.Text);
     }
+
+    // 11. OurShootingInefficiency is the second tag whose bare enum name reads as a
+    // broader, overclaiming verdict ("shooting" generally) than the trigger it
+    // names (three-point percentage specifically), so the prompt substitutes a
+    // neutral phrase for it too - same pattern as TooManyThreePointAttempts above,
+    // proven here by inspecting the actual outgoing request.
+    [Fact]
+    public async Task PromptForOurShootingInefficiency_SendsNeutralDescription_NotTheRawEnumName()
+    {
+        // Canned reason deliberately avoids both the neutral phrase and the raw
+        // enum name, so neither of tests 12/13's concerns interferes with this
+        // test observing the outgoing request.
+        var body = ResponsesApiEnvelope.Build(("Offense", "Get more reps up from the corners.", "Accuracy from deep has lagged this game."));
+        var capturingHandler = new FakeResponsesApiHandler(body);
+        var client = new OpenAiSuggestionClientHttp(
+            Microsoft.Extensions.Options.Options.Create(new OpenAiOptions { ApiKey = "test-key", Model = "test-model", BaseUrl = "http://localhost" }),
+            new HttpClient(capturingHandler));
+
+        await client.GetSuggestionsAsync(
+            CreateInput(),
+            new[] { ProblemTag.OurShootingInefficiency },
+            CreateDiagnostics("Amateur_Default"),
+            "Amateur_Default");
+
+        Assert.NotNull(capturingHandler.LastRequestBody);
+        Assert.Contains("Low three-point percentage", capturingHandler.LastRequestBody);
+        Assert.DoesNotContain("OurShootingInefficiency", capturingHandler.LastRequestBody);
+    }
+
+    // 12. The neutral phrase is the sanctioned coaching-language description of
+    // this finding, not an internal identifier - a suggestion using it verbatim
+    // must be KEPT, not treated as a leak.
+    [Fact]
+    public async Task SuggestionUsingNeutralDescriptionForOurShootingInefficiency_IsAllowed()
+    {
+        var body = ResponsesApiEnvelope.Build(
+            ("Offense", "Run more actions that get shooters open looks from deep.",
+             "Low three-point percentage."));
+        var client = CreateClient(body);
+
+        var result = await client.GetSuggestionsAsync(
+            CreateInput(),
+            new[] { ProblemTag.OurShootingInefficiency },
+            CreateDiagnostics("Amateur_Default"),
+            "Amateur_Default");
+
+        var suggestion = Assert.Single(result);
+        Assert.Equal("Run more actions that get shooters open looks from deep.", suggestion.Text);
+        Assert.Equal("Low three-point percentage.", suggestion.Reason);
+    }
+
+    // 13. The raw enum name must still be rejected if the model produces it, even
+    // though this request's prompt never showed the model that string for this
+    // tag (test 11 proves it wasn't sent).
+    [Fact]
+    public async Task SuggestionExposingRawEnumNameForOurShootingInefficiency_IsRemoved()
+    {
+        var body = ResponsesApiEnvelope.Build(
+            ("Offense", "Address OurShootingInefficiency immediately.", "Flagged by the rules engine."),
+            ("Offense", "Run more actions that get shooters open looks from deep.", "Three-point shooting has been inefficient this game."));
+        var client = CreateClient(body);
+
+        var result = await client.GetSuggestionsAsync(
+            CreateInput(),
+            new[] { ProblemTag.OurShootingInefficiency },
+            CreateDiagnostics("Amateur_Default"),
+            "Amateur_Default");
+
+        var suggestion = Assert.Single(result);
+        Assert.Equal("Run more actions that get shooters open looks from deep.", suggestion.Text);
+    }
 }

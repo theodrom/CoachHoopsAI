@@ -65,6 +65,12 @@ It defines the concepts, language, and deterministic rules used to analyze games
   opponent's `ThreePointPercentage` via `GameCalculatedMetricsCalculator`
   instead of `LegacyPercentageBridge` - a same-formula data-source migration,
   not a new or refined finding - see `Docs/03-domain-and-rules.md`
+- `OurShootingInefficiency` (an M1 rule, trigger unchanged) likewise migrated
+  its own team-side `ThreePointPercentage` off `LegacyPercentageBridge` onto
+  `CalculatedMetricsCalculator`/M2A (via `GameCalculatedMetricsCalculator`) -
+  the same same-formula migration pattern as `OpponentHotFromThree`, plus a
+  presentation-layer wording correction (see below) - see
+  `Docs/03-domain-and-rules.md`
 - `LowFreeThrowRate` replaced `LackOfPaintPressure`'s trigger (fouls + score,
   with no defensible connection to what it claimed to measure); the
   `LackOfPaintPressure` enum member is kept, but `StatRulesEngine` no longer
@@ -125,6 +131,15 @@ It defines the concepts, language, and deterministic rules used to analyze games
   result to fire at Amateur level; early-live-game confidence remains an
   open, unresolved concern, not something this refinement resolves - see
   `Docs/03-domain-and-rules.md`
+- `OurShootingInefficiency`'s trigger was reviewed and found **sound as-is**
+  despite its broad name: it reads three-point percentage only, never overall
+  FG%/eFG%, gated on a real minimum-attempts sample. No trigger, threshold, or
+  ordinal change - only its calculation source (migrated off
+  `LegacyPercentageBridge` onto `teamMetrics.ThreePointPercentage`, M2A - an
+  identical formula, no `RulesetVersion` bump) and its presentation-layer
+  wording (Admin label corrected from "Our Shooting Inefficiency" to "Low
+  Three Point Percentage"; LLM prompt value substituted the same way
+  `TooManyThreePointAttempts` already was) - see `Docs/03-domain-and-rules.md`
 
 ---
 

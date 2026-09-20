@@ -540,6 +540,11 @@ requires (the two percentage thresholds differ: `TooManyThreePctMax` 0.33
 vs. `OurBadThreePct` 0.30 at Amateur level) - the two findings can fire
 together, independently, or not at all. Neither finding compares against the
 team's two-point value either, for the same reason described above.
+`OurShootingInefficiency`'s own review (below) found this trigger sound as-is
+and corrected only its presentation-layer wording (Admin label "Low Three
+Point Percentage", LLM prompt value "Low three-point percentage") to stop
+overclaiming *overall* shooting inefficiency - the enum member, ordinal, and
+trigger are unchanged.
 
 Thresholds (`RulesProfile.TooManyThreeAttemptRateMin`/
 `TooManyThreeAttemptRateAttemptsMin`/`TooManyThreePctMax`, and the per-level
@@ -1078,6 +1083,93 @@ expanded rule after it; closing it would mean threading `GameFormat`/
 beyond the scope of this slice. Early-live-game confidence stays an open,
 general concern for this and every other count/rate-based `StatRulesEngine`
 rule.
+
+### `OurShootingInefficiency` (sound trigger, migrated source, corrected wording)
+
+**Trigger (unchanged):**
+
+```text
+team.ThreePointPercentage <= profile.OurBadThreePct
+  AND
+team.ThreePointsAttempted >= profile.OurBadThreeAttemptsMin
+```
+
+Per-level `OurBadThreePct`/`OurBadThreeAttemptsMin`: EasyBasket 0.25/3,
+Youth 0.28/10, Amateur 0.30/15, Pro 0.32/18, Amateur_Development 0.28/12.
+
+**The rule itself is sound.** Despite the broad enum name, the trigger reads
+three-point shooting only - `ThreePointsMade`/`ThreePointsAttempted` - never
+overall FG% or eFG%. It is gated on a real minimum-attempts sample
+(`OurBadThreeAttemptsMin`), and it reads no score, no opponent data, and no
+causal information (shot selection, spacing, shot quality, defense faced).
+Applying the same audit this document has run on every other tag: the
+trigger's data genuinely supports what it measures. No change to the
+percentage threshold, the attempts gate, the enum member, or its ordinal
+(`3`) was needed - the smallest compatible outcome the review process
+described applies here.
+
+**What did need fixing: the name overclaims.** "OurShootingInefficiency"
+reads as a verdict about the team's *overall* shooting - the same broad
+claim `LowEffectiveFieldGoalPercentage`'s name correctly makes for eFG% -
+when this trigger is narrower: three-point percentage specifically. A team
+can be "shooting inefficiently" by this tag's old label while its two-point
+shooting, and therefore its overall efficiency, is excellent. The Admin
+label was corrected from "Our Shooting Inefficiency" to **"Low Three Point
+Percentage"** - a literal, accurate description of what the trigger actually
+measures, matching the Title-Case-no-hyphen convention every other
+non-substituted Admin label in this codebase already uses (e.g. "Low
+Effective Field Goal Percentage", "Low Free Throw Rate"). The LLM prompt
+value received the same substitution, for the same reason `TooManyThreePointAttempts`
+did: `ProblemTag.OurShootingInefficiency`'s bare enum name is what a model
+sees when it has no other context, and "shooting inefficiency" primes it
+toward a broader claim than the data supports. `LlmDescription` now returns
+`"Low three-point percentage"` (sentence case with a hyphen, matching
+`TooManyThreePointAttempts`'s `"High three-point share with low
+three-point percentage"` - the established asymmetry in this codebase between
+Title-Case Admin labels and sentence-case LLM phrases) instead of falling
+through to `tag.ToString()`. `ExposesInternalIdentifier` (the leak filter)
+was **not** changed to match - it still checks `tag.ToString()` for every
+tag, including `OurShootingInefficiency`, so the raw enum name is rejected
+if a model produces it regardless of what the prompt sent, while the neutral
+phrase itself is never mistaken for a leak. This is the exact same two-rule
+separation already established for `TooManyThreePointAttempts`: what the
+prompt *sends* and what the filter *rejects* are independent concerns.
+
+**The enum member, ordinal, and API/persistence value are all unchanged.**
+`ProblemTag.OurShootingInefficiency` (ordinal `3`) is the literal historical
+name, kept stable for `AnalyzeGameMappings` and already-persisted
+`AnalysisRecord.ProblemTagsJson` history; only its documented meaning and its
+two presentation-layer wordings (Admin label, LLM prompt value) were
+corrected - the same "keep the code, fix the words" pattern used for
+`TooManyThreePointAttempts`. No new enum member was added: renaming a sound
+finding does not, by itself, change what the existing ordinal means across
+history, so appending a replacement tag here would have been unjustified
+churn, not a correction.
+
+**Calculation source migrated, no behavior change.** `teamThreePointPct`
+moved off `LegacyPercentageBridge.ThreePointPercentage(team)` onto
+`teamMetrics.ThreePointPercentage` (M2A, via `gameMetrics.Team` already
+computed for the rules above) - an identical formula
+(`ThreePointsAttempted == 0 ? 0.0 : ThreePointsMade / ThreePointsAttempted`),
+including the same zero-attempts convention. `RulesetVersion` was **not**
+bumped: the trigger, thresholds, and observable behavior are unchanged -
+only the calculation source and the presentation-layer wording changed,
+which this document's own precedent (`OpponentHotFromThree`'s migration)
+already established does not warrant a version bump.
+
+**Distinct from `LowEffectiveFieldGoalPercentage` and
+`TooManyThreePointAttempts`.** Both relationships are already documented in
+their own sections above; unchanged by this review, since neither trigger
+here was modified. In short: `LowEffectiveFieldGoalPercentage` reads eFG%
+(all shots, weighted for three-point value) rather than 3P% alone, so a team
+can be inefficient from three while still posting an adequate eFG%, or vice
+versa. `TooManyThreePointAttempts` reads the same 3P% but additionally
+requires a high three-point attempt *rate*; at Amateur level
+`OurBadThreePct` (0.30) is stricter than `TooManyThreePctMax` (0.33), so a
+real band exists (0.30-0.33) where a team's three-point shooting is bad
+enough to trip `TooManyThreePointAttempts`'s looser accuracy bar without
+being bad enough for this tag's stricter one, if the volume is also high
+enough. The two findings can fire together, independently, or not at all.
 
 ## Philosophy
 

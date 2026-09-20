@@ -10,7 +10,14 @@ public sealed class ProblemTagDto
         0 => "None",
         1 => "Turnover Problem",
         2 => "Offensive Efficiency Problem", // ruleset 1.4 onward: OffensiveRating-based, no score-margin gate (see Docs/03-domain-and-rules.md)
-        3 => "Our Shooting Inefficiency",
+        // Coach-facing label deliberately does not say "shooting" broadly: despite
+        // the enum name, this trigger reads three-point percentage only
+        // (ThreePointsMade/ThreePointsAttempted), never overall FG%/eFG%, so the
+        // literal label names the actual metric instead of overclaiming general
+        // shooting inefficiency (see Docs/03-domain-and-rules.md).
+        // ProblemTag.OurShootingInefficiency (the code/ordinal) remains the stable
+        // identifier for historical records.
+        3 => "Low Three Point Percentage",
         // Coach-facing label deliberately does not say "too many": a high
         // three-point share combined with a below-threshold 3P% does not by
         // itself prove that fewer three-point attempts would have scored more

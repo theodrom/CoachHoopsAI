@@ -153,17 +153,21 @@ namespace CoachHoopsAI.Infrastructure.AI
         }
 
         // The bare enum name doubles as this tag's LLM-facing description for every
-        // tag except this one. "TooManyThreePointAttempts" reads as a resolved
+        // tag except these two. "TooManyThreePointAttempts" reads as a resolved
         // verdict ("too many") to a model that has only the raw identifier to go
         // on, but the trigger it names is a coaching-judgment threshold - a high
         // three-point attempt share combined with a below-threshold three-point
         // percentage, not proof that a different shot mix would have scored more
         // (see Docs/03-domain-and-rules.md's "What the trigger does, and does not,
-        // establish"). The enum member/ordinal is unchanged for API and
-        // persistence stability (`AnalyzeGameMappings`, `AnalysisRecord.ProblemTagsJson`
-        // still emit/store the raw "TooManyThreePointAttempts" name) - only what
-        // this prompt shows the model changes. `ProblemTagDto`'s Admin label makes
-        // the same substitution for the same reason.
+        // establish"). "OurShootingInefficiency" reads as a broad, overall-shooting
+        // verdict, but the trigger it names reads three-point percentage only
+        // (ThreePointsMade/ThreePointsAttempted) - never overall FG%/eFG% - so the
+        // neutral phrase names the actual metric instead of overclaiming general
+        // shooting inefficiency. In both cases the enum member/ordinal is unchanged
+        // for API and persistence stability (`AnalyzeGameMappings`,
+        // `AnalysisRecord.ProblemTagsJson` still emit/store the raw historical
+        // name) - only what this prompt shows the model changes. `ProblemTagDto`'s
+        // Admin label makes the same substitution for the same reason.
         //
         // This is deliberately a ONE-WAY substitution, used only when building the
         // prompt - see ExposesInternalIdentifier below for why the leak filter must
@@ -171,6 +175,7 @@ namespace CoachHoopsAI.Infrastructure.AI
         private static string LlmDescription(ProblemTag tag) => tag switch
         {
             ProblemTag.TooManyThreePointAttempts => "High three-point share with low three-point percentage",
+            ProblemTag.OurShootingInefficiency => "Low three-point percentage",
             _ => tag.ToString()
         };
 
@@ -180,11 +185,12 @@ namespace CoachHoopsAI.Infrastructure.AI
         // enum name (e.g. "turnover") is never mistaken for a leaked identifier.
         //
         // Deliberately checks tag.ToString() - the raw enum name - for every tag,
-        // including TooManyThreePointAttempts, even though LlmDescription (above)
-        // means that exact name is no longer what this request's prompt showed the
-        // model for that tag. Two separate concerns, two separate rules:
+        // including TooManyThreePointAttempts and OurShootingInefficiency, even
+        // though LlmDescription (above) means neither exact name is what this
+        // request's prompt showed the model for those two tags. Two separate
+        // concerns, two separate rules:
         //   - What the prompt SENDS is the neutral phrase (LlmDescription), so the
-        //     model is never primed with the "too many" framing.
+        //     model is never primed with the "too many"/overall-shooting framing.
         //   - What this filter REJECTS is the raw, code-shaped identifier
         //     regardless of whether it was sent this time, because that identifier
         //     is not coaching language and should never reach a coach if the model

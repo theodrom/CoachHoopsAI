@@ -13,8 +13,8 @@ Repository-specific instructions for AI-assisted development on CoachHoopsAI.
   M2B possession/cross-team metrics, M2C live estimated pace) is complete on
   `main`. Not yet tagged.
 - Verified 2026-09-20: `dotnet build CoachHoopsAI.sln` succeeds with no
-  errors; `dotnet test CoachHoopsAI.sln` passes 239 tests, 0 failed
-  (145 + 14 + 12 + 68 across the four test projects below). Treat this as a
+  errors; `dotnet test CoachHoopsAI.sln` passes 256 tests, 0 failed
+  (159 + 14 + 15 + 68 across the four test projects below). Treat this as a
   dated snapshot, not a permanent expected count - re-run rather than
   trusting this number as it ages.
 - Four test projects, no mocking framework, hand-written fakes only:
@@ -126,24 +126,28 @@ facts derived from raw stats, never rounded internally, never folded into
   replaces what the rules engine consumes.
 - The M2 calculated-metrics layer (`TeamCalculatedMetrics`/
   `GameCalculatedMetrics`) exists alongside `LegacyPercentageBridge`, not in
-  place of it. `StatRulesEngine` still reads the bridge's
-  `ThreePointPercentage` ratio for `OurShootingInefficiency`; six M3 rules
+  place of it - this is still true, even though every rule that used to call
+  it has now either migrated or been retired. Six M3 rules
   (`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
   `OffensiveEfficiencyProblem`, `TooManyThreePointAttempts`,
   `LowDefensiveReboundPercentage`, `HighOpponentEffectiveFieldGoalPercentage`)
-  additionally read `GameCalculatedMetricsCalculator` directly, and
-  `OpponentHotFromThree` (an M1 rule, unrefined) had just its percentage side
-  migrated the same way - its trigger, thresholds, and meaning are unchanged,
-  so it is a data-source migration, not a seventh M3 slice. Those are the
-  only rules migrated off the bridge so far, not a signal to migrate the rest
-  yet. `PerimeterDefenseProblem` and `InteriorDefenseProblem`, the bridge's
-  other former M1 consumers (of `ThreePointPercentage` and
-  `FieldGoalPercentage` respectively), are both retired (see below) rather
-  than migrated - `StatRulesEngine` no longer evaluates either at all, on the
-  bridge or otherwise. (`LegacyPercentageBridge.FieldGoalPercentage` itself is
-  now only assigned to an unused local, `teamFieldGoalPct`, in
-  `StatRulesEngine` - a pre-existing dead assignment that predates this
-  retirement and was left as-is, out of scope for this change.)
+  read `GameCalculatedMetricsCalculator` directly by design, as new/refined
+  M3 slices. `OpponentHotFromThree` and `OurShootingInefficiency` (both M1
+  rules, triggers unchanged) each had just their own percentage side migrated
+  the same way - same trigger, same thresholds, same meaning, so these are
+  data-source migrations, not additional M3 slices, and not a signal to
+  migrate the rest of `StatRulesEngine` yet. `PerimeterDefenseProblem` and
+  `InteriorDefenseProblem`, the bridge's other former M1 consumers (of
+  `ThreePointPercentage` and `FieldGoalPercentage` respectively), are both
+  retired (see below) rather than migrated - `StatRulesEngine` no longer
+  evaluates either at all, on the bridge or otherwise. As a result,
+  `LegacyPercentageBridge.ThreePointPercentage` now has **no live caller
+  anywhere in `StatRulesEngine`**, and `LegacyPercentageBridge.FieldGoalPercentage`
+  is called once but only assigned to an unused local (`teamFieldGoalPct`) -
+  a pre-existing dead assignment, left as-is and out of scope for these
+  reviews. `LegacyPercentageBridge` itself is not deleted, since it remains
+  intentional M1 scaffolding per the rule above until a milestone decision
+  says otherwise, not something to remove opportunistically mid-review.
 - `GameFormat`/`GameTiming` are captured and persisted but are **intentionally
   not yet consumed** by the rules engine, diagnostics, or the LLM prompt.
 
@@ -169,13 +173,15 @@ facts derived from raw stats, never rounded internally, never folded into
   `TurnoverProblem`), `FoulsProblem` refined in place (same tag - the
   differential trigger was sound but under-inclusive, so an absolute
   foul-count condition was added alongside it; deliberately not migrated to
-  `FoulRate`).
+  `FoulRate`), `OurShootingInefficiency` found sound as-is (same tag, no
+  trigger change) with only its calculation source migrated and its
+  overclaiming "shooting" wording corrected to "Low Three Point Percentage."
 - **M4** - sessions/snapshots.
 - **M5** - LLM/Admin integration built on the above.
 
 ## Next steps (M3)
 
-Nine slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
+Ten slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
 (Milestone 3)" section for full rationale:
 
 - `LowEffectiveFieldGoalPercentage` (`StatRulesEngine`) flags a low team
@@ -368,7 +374,7 @@ Nine slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
   `FoulsHighCountToFlag`'s five per-level values are explicit project
   defaults chosen for this review, not a universal coaching standard.
 - `AnalysisHistoryService.RulesetVersion` was bumped eight times across these
-  nine slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
+  ten slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
   `OffensiveEfficiencyProblem`, `1.4` -> `1.5` for `TooManyThreePointAttempts`,
   `1.5` -> `1.6` for `LowDefensiveReboundPercentage`, `1.6` -> `1.7` for
   `PerimeterDefenseProblem`'s retirement, `1.7` -> `1.8` for
@@ -385,6 +391,31 @@ already plain observations. Only its percentage side was migrated off
 per-side by `GameCalculatedMetricsCalculator` - an identical formula
 (including the same zero-attempts-means-`0.0` convention), so no trigger,
 threshold, tag, or `RulesetVersion` change was needed for it.
+
+`OurShootingInefficiency` was reviewed the same way and reached the same
+"sound as-is" conclusion, but with one real defect: despite its broad name,
+the trigger reads three-point percentage only (`ThreePointsMade`/
+`ThreePointsAttempted`), gated on a `3PA` minimum, never overall FG%/eFG% -
+"Our Shooting Inefficiency" overclaimed general shooting struggles the data
+never measured. Unlike `TooManyThreePointAttempts` (a threshold-judgment
+correction) or the retirements above (a data-connection failure), this was a
+pure naming defect on an already-correct trigger. Fixed with the same
+two-layer wording substitution already established for
+`TooManyThreePointAttempts`: the Admin label (`ProblemTagDto`) changed from
+"Our Shooting Inefficiency" to "Low Three Point Percentage", and the LLM
+prompt value (`OpenAiSuggestionClientHttp.LlmDescription`) now returns "Low
+three-point percentage" instead of falling through to the raw enum name.
+`ExposesInternalIdentifier` (the leak filter) was **not** changed - it still
+checks `tag.ToString()` for `OurShootingInefficiency`, so the raw enum name
+is rejected if a model produces it, while the neutral phrase is never
+mistaken for a leak - the same separation of "what the prompt sends" from
+"what the filter rejects" already in place for `TooManyThreePointAttempts`.
+`ProblemTag.OurShootingInefficiency` (ordinal `3`) is unchanged - no new enum
+member, since renaming a sound finding does not change what the existing
+ordinal means across history. Its percentage side was also migrated off
+`LegacyPercentageBridge` onto the M2A `ThreePointPercentage` (an identical
+formula), the same data-source migration pattern as `OpponentHotFromThree`.
+No trigger, threshold, tag, or `RulesetVersion` change was needed.
 
 **`ProblemTag` additions must always be appended, never inserted.**
 `AnalysisRecord.ProblemTagsJson` persists tags as a raw integer array

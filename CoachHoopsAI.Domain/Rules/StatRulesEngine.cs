@@ -15,7 +15,6 @@ namespace CoachHoopsAI.Domain.Rules
             var tags = new List<ProblemTag>();
 
             var teamFieldGoalPct = LegacyPercentageBridge.FieldGoalPercentage(team);
-            var teamThreePointPct = LegacyPercentageBridge.ThreePointPercentage(team);
 
             // Milestone 3's rules that read the Milestone 2 calculated-metrics layer
             // directly, instead of LegacyPercentageBridge. GameCalculatedMetricsCalculator
@@ -32,7 +31,18 @@ namespace CoachHoopsAI.Domain.Rules
             if ((team.Turnovers - opponent.Turnovers) >= profile.TurnoverDiffToFlag)
                 tags.Add(ProblemTag.TurnoverProblem);
 
-            if (teamThreePointPct <= profile.OurBadThreePct && team.ThreePointsAttempted >= profile.OurBadThreeAttemptsMin)
+            // Milestone 3: migrated the percentage side off LegacyPercentageBridge onto
+            // teamMetrics.ThreePointPercentage (M2A, via gameMetrics above) - an
+            // identical formula (ThreePointsMade / ThreePointsAttempted, 0.0 when
+            // ThreePointsAttempted is zero), so this is a mechanically equivalent
+            // migration with no behavior change: same trigger, same thresholds, same
+            // tag, no RulesetVersion bump. The trigger itself was already sound and is
+            // unchanged - despite the broad enum name, it reads three-point shooting
+            // specifically (ThreePointsMade/ThreePointsAttempted only), gated on a
+            // real 3PA minimum sample, not overall shooting efficiency; the Admin
+            // label and LLM prompt value are corrected to say so instead of
+            // overclaiming "shooting" broadly - see Docs/03-domain-and-rules.md.
+            if (teamMetrics.ThreePointPercentage <= profile.OurBadThreePct && team.ThreePointsAttempted >= profile.OurBadThreeAttemptsMin)
                 tags.Add(ProblemTag.OurShootingInefficiency);
 
             // Minimum-attempts gate is required, not optional: CalculatedMetricsCalculator
