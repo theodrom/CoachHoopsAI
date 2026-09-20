@@ -646,6 +646,48 @@ basketball facts.
 `ProblemTag` enum (after `LowFreeThrowRate`), for the same ordinal-safety
 reason documented above.
 
+### `OpponentHotFromThree` (unchanged meaning, migrated data source)
+
+Unlike every other rule in this section, `OpponentHotFromThree`'s trigger was
+already sound before Milestone 3 touched it:
+
+```text
+opponentThreePointPct >= profile.OpponentHotThreePct
+  AND
+opponent.ThreePointsAttempted >= profile.OpponentHotThreeAttemptsMin
+```
+
+It reads the correct side's data (the opponent's three-point shooting, not
+ours), it already carries a minimum-attempts gate so a handful of early
+attempts can't read as "hot" from a trivial sample, and the trigger itself
+never depended on score margin, fouls, or any other data unrelated to
+three-point shooting. The name is shorthand for a measured result - "the
+opponent made a high share of a meaningful number of three-point attempts" -
+not a tactical diagnosis; nothing here infers poor closeouts, blown
+rotations, weak-side rotation lapses, or shot quality, none of which
+`TeamStats` has the shot-location or possession-by-possession data to
+support. `ProblemTagDto`'s label ("Opponent Hot From Three") and the LLM
+prompt (which sends this tag's bare enum name, like every tag other than
+`TooManyThreePointAttempts`) both already reflect that.
+
+**The only change: `opponentThreePointPct` moved off `LegacyPercentageBridge`
+onto `gameMetrics.Opponent.ThreePointPercentage`** (M2A's formula, exposed
+per-side by `GameCalculatedMetricsCalculator`/M2B, which `StatRulesEngine`
+already calls once per `Evaluate` for the rules above). The two formulas are
+identical -
+`ThreePointsAttempted == 0 ? 0.0 : ThreePointsMade / ThreePointsAttempted` -
+including the same zero-attempts convention (`0.0`, never `null`, unlike the
+M2B-only fields such as `DefensiveReboundPercentage`), so this is a
+mechanically equivalent migration: same trigger, same per-level thresholds,
+same tag, no `RulesetVersion` bump. `PerimeterDefenseProblem`, which also
+reads `opponentThreePointPct` (against its own hardcoded 0.36 threshold), was
+left reading the `LegacyPercentageBridge` value unchanged - only the local
+feeding `OpponentHotFromThree` was touched.
+
+No `RulesProfile` fields were added, removed, or renamed; no enum member was
+added; no Admin label or LLM-prompt wording changed, because none of them
+overclaimed anything to begin with.
+
 ## Philosophy
 
 Rules represent �coach-agreeable� heuristics, not absolute truth.

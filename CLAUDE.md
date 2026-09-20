@@ -12,9 +12,9 @@ Repository-specific instructions for AI-assisted development on CoachHoopsAI.
 - Milestone 2 (calculated numerical basketball metrics - M2A team metrics,
   M2B possession/cross-team metrics, M2C live estimated pace) is complete on
   `main`. Not yet tagged.
-- Verified 2026-09-18: `dotnet build CoachHoopsAI.sln` succeeds with no
-  errors; `dotnet test CoachHoopsAI.sln` passes 198 tests, 0 failed
-  (104 + 14 + 12 + 68 across the four test projects below). Treat this as a
+- Verified 2026-09-20: `dotnet build CoachHoopsAI.sln` succeeds with no
+  errors; `dotnet test CoachHoopsAI.sln` passes 211 tests, 0 failed
+  (117 + 14 + 12 + 68 across the four test projects below). Treat this as a
   dated snapshot, not a permanent expected count - re-run rather than
   trusting this number as it ages.
 - Four test projects, no mocking framework, hand-written fakes only:
@@ -126,12 +126,15 @@ facts derived from raw stats, never rounded internally, never folded into
 - The M2 calculated-metrics layer (`TeamCalculatedMetrics`/
   `GameCalculatedMetrics`) exists alongside `LegacyPercentageBridge`, not in
   place of it. `StatRulesEngine` still reads the bridge's two ratios for its
-  original (M1) rules and for `OurShootingInefficiency`; five M3 rules
-  (`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
-  `OffensiveEfficiencyProblem`, `TooManyThreePointAttempts`,
+  original (M1) rules (including `PerimeterDefenseProblem`) and for
+  `OurShootingInefficiency`; five M3 rules (`LowEffectiveFieldGoalPercentage`,
+  `LowFreeThrowRate`, `OffensiveEfficiencyProblem`, `TooManyThreePointAttempts`,
   `LowDefensiveReboundPercentage`) additionally read
-  `GameCalculatedMetricsCalculator` directly - those are the only rules
-  migrated off the bridge so far, not a signal to migrate the rest yet.
+  `GameCalculatedMetricsCalculator` directly, and `OpponentHotFromThree` (an
+  M1 rule, unrefined) had just its percentage side migrated the same way -
+  its trigger, thresholds, and meaning are unchanged, so it is a data-source
+  migration, not a sixth M3 slice. Those are the only rules migrated off the
+  bridge so far, not a signal to migrate the rest yet.
 - `GameFormat`/`GameTiming` are captured and persisted but are **intentionally
   not yet consumed** by the rules engine, diagnostics, or the LLM prompt.
 
@@ -249,6 +252,18 @@ Five slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
   for `OffensiveEfficiencyProblem`, `1.4` -> `1.5` for
   `TooManyThreePointAttempts`, `1.5` -> `1.6` for
   `LowDefensiveReboundPercentage`) to mark each change.
+
+`OpponentHotFromThree` was reviewed against the same criteria and found
+already sound: a measured opponent shooting result gated on a minimum
+three-point-attempts sample, reading only opponent data, with no score,
+foul, or other causal input, and a coach-facing label/LLM value that were
+already plain observations. Only its percentage side was migrated off
+`LegacyPercentageBridge` onto the M2A `ThreePointPercentage` already exposed
+per-side by `GameCalculatedMetricsCalculator` - an identical formula
+(including the same zero-attempts-means-`0.0` convention), so no trigger,
+threshold, tag, or `RulesetVersion` change was needed. `PerimeterDefenseProblem`,
+which reads the same legacy `opponentThreePointPct` local against its own
+hardcoded threshold, was left untouched.
 
 **`ProblemTag` additions must always be appended, never inserted.**
 `AnalysisRecord.ProblemTagsJson` persists tags as a raw integer array

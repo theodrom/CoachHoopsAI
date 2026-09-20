@@ -1,3 +1,4 @@
+using CoachHoopsAI.Domain.Compatibility;
 using CoachHoopsAI.Domain.Entities;
 using CoachHoopsAI.Domain.Metrics;
 using CoachHoopsAI.Domain.Rules;
@@ -628,6 +629,137 @@ public class StatRulesEngineTests
         var tags = _engine.Evaluate(team, opponent, _profile);
 
         Assert.Contains(ProblemTag.OpponentHotFromThree, tags);
+    }
+
+    // Milestone 3: OpponentHotFromThree's trigger was already sound (a measured
+    // opponent shooting result gated on a minimum-attempts sample, no causal or
+    // tactical claim) - the only change was migrating the percentage side off
+    // LegacyPercentageBridge onto the M2A ThreePointPercentage already computed
+    // for the opponent by GameCalculatedMetricsCalculator (M2B). Same trigger,
+    // same thresholds, same tag, no RulesetVersion bump.
+
+    [Theory]
+    [InlineData(37, false)] // 3P 37/100 = 0.37, just below OpponentHotThreePct (0.38)
+    [InlineData(38, true)]  // 3P 38/100 = 0.38, at threshold (>=, boundary)
+    [InlineData(40, true)]  // 3P 40/100 = 0.40, above threshold
+    public void Evaluate_OpponentHotFromThree_PercentageBoundary(int made, bool expectTag)
+    {
+        var team = Healthy();
+        var opponent = HealthyOpponent() with { ThreePointsMade = made, ThreePointsAttempted = 100 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.OpponentHotFromThree));
+    }
+
+    [Theory]
+    [InlineData(19, false)] // attempts just below OpponentHotThreeAttemptsMin (20)
+    [InlineData(20, true)]  // at the minimum (boundary)
+    [InlineData(25, true)]  // above the minimum
+    public void Evaluate_OpponentHotFromThree_MinimumAttemptsBoundary(int attempts, bool expectTag)
+    {
+        // made held at 40% of attempts throughout (comfortably above the 0.38
+        // percentage threshold), so only the sample size varies - proves the
+        // minimum-attempts gate, not the percentage, is what suppresses the tag
+        // below the cutoff.
+        var made = (int)(attempts * 0.4);
+        var team = Healthy();
+        var opponent = HealthyOpponent() with { ThreePointsMade = made, ThreePointsAttempted = attempts };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.OpponentHotFromThree));
+    }
+
+    [Fact]
+    public void Evaluate_OpponentHotFromThree_ZeroAttempts_DoesNotTrigger()
+    {
+        // ThreePointsAttempted == 0 drives ThreePointPercentage to 0.0 (M2A's
+        // zero-denominator convention - never null for this field), which alone
+        // is below the threshold; the minimum-attempts gate excludes it
+        // independently either way, so a team that hasn't attempted a three yet
+        // can never read as "hot" from behind the arc.
+        var team = Healthy();
+        var opponent = HealthyOpponent() with { ThreePointsMade = 0, ThreePointsAttempted = 0 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.OpponentHotFromThree, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OpponentHotFromThree_ReadsOpponentStats_NotOurStats()
+    {
+        // Our own three-point shooting has no bearing on this finding: a red-hot
+        // team (75%) does not trigger it while the opponent is cold, and a cold
+        // team (0%) does not suppress it while the opponent is hot.
+        var hotTeam = Healthy() with { ThreePointsMade = 15, ThreePointsAttempted = 20 }; // 0.75
+        var coldOpponent = HealthyOpponent() with { ThreePointsMade = 6, ThreePointsAttempted = 20 }; // 0.30
+        var tagsWithHotTeamColdOpponent = _engine.Evaluate(hotTeam, coldOpponent, _profile);
+        Assert.DoesNotContain(ProblemTag.OpponentHotFromThree, tagsWithHotTeamColdOpponent);
+
+        var coldTeam = Healthy() with { ThreePointsMade = 0, ThreePointsAttempted = 20 }; // 0.0
+        var hotOpponent = HealthyOpponent() with { ThreePointsMade = 8, ThreePointsAttempted = 20 }; // 0.40
+        var tagsWithColdTeamHotOpponent = _engine.Evaluate(coldTeam, hotOpponent, _profile);
+        Assert.Contains(ProblemTag.OpponentHotFromThree, tagsWithColdTeamHotOpponent);
+    }
+
+    [Fact]
+    public void Evaluate_OpponentHotFromThree_ReadsThresholdsFromProfile_NotHardcoded()
+    {
+        // Identical opponent shooting (3P 8/20 = 0.40) judged against two profiles
+        // that differ only in OpponentHotThreePct - proves the threshold is
+        // profile-driven per level, not a hardcoded constant (contrast
+        // PerimeterDefenseProblem, which genuinely is hardcoded).
+        var team = Healthy();
+        var opponent = HealthyOpponent() with { ThreePointsMade = 8, ThreePointsAttempted = 20 };
+
+        var lenientProfile = new RulesProfile { OpponentHotThreePct = 0.45, OpponentHotThreeAttemptsMin = 10 };
+        var strictProfile = new RulesProfile { OpponentHotThreePct = 0.35, OpponentHotThreeAttemptsMin = 10 };
+
+        var lenientTags = _engine.Evaluate(team, opponent, lenientProfile);
+        var strictTags = _engine.Evaluate(team, opponent, strictProfile);
+
+        Assert.DoesNotContain(ProblemTag.OpponentHotFromThree, lenientTags);
+        Assert.Contains(ProblemTag.OpponentHotFromThree, strictTags);
+    }
+
+    [Fact]
+    public void Evaluate_OpponentHotFromThree_CoOccursWithUnrelatedTags_WithoutDuplicationOrInterference()
+    {
+        // Opponent hot from three alongside a separately-triggered TurnoverProblem
+        // on our side; FoulsProblem stays absent since nothing here drives a foul
+        // differential. Confirms the migrated rule still composes cleanly with
+        // other findings.
+        var opponent = HealthyOpponent() with { ThreePointsMade = 8, ThreePointsAttempted = 20 }; // 0.40
+        var team = Healthy() with { Turnovers = opponent.Turnovers + 5 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.OpponentHotFromThree, tags);
+        Assert.Contains(ProblemTag.TurnoverProblem, tags);
+        Assert.DoesNotContain(ProblemTag.FoulsProblem, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
+    }
+
+    [Theory]
+    [InlineData(0, 0)]   // zero attempts - the 0.0 convention on both sides
+    [InlineData(6, 20)]  // HealthyOpponent's own baseline
+    [InlineData(38, 100)]
+    public void Evaluate_OpponentThreePointPercentage_M2CalculatorMatchesLegacyBridge(int made, int attempted)
+    {
+        // Direct proof that the Milestone 3 migration (LegacyPercentageBridge ->
+        // GameCalculatedMetricsCalculator's M2A-derived Opponent.ThreePointPercentage)
+        // is behavior-preserving: both formulas must agree for every case, including
+        // the zero-attempts edge case, or the migration above would not be
+        // mechanically equivalent.
+        var team = Healthy();
+        var opponent = HealthyOpponent() with { ThreePointsMade = made, ThreePointsAttempted = attempted };
+
+        var legacyPct = LegacyPercentageBridge.ThreePointPercentage(opponent);
+        var m2Pct = GameCalculatedMetricsCalculator.Calculate(team, opponent).Opponent.ThreePointPercentage;
+
+        Assert.Equal(legacyPct, m2Pct, precision: 10);
     }
 
     [Fact]

@@ -23,10 +23,12 @@ namespace CoachHoopsAI.Domain.Rules
             // directly, instead of LegacyPercentageBridge. GameCalculatedMetricsCalculator
             // (M2B), not just CalculatedMetricsCalculator (M2A), is used here because
             // OffensiveEfficiencyProblem below needs OffensiveRating/EstimatedPossessions,
-            // which only M2B populates - .Team already carries every M2A field too
-            // (unchanged from a direct CalculatedMetricsCalculator.Calculate(team) call),
-            // so this single call covers both without duplicating either calculator.
-            var teamMetrics = GameCalculatedMetricsCalculator.Calculate(team, opponent).Team;
+            // which only M2B populates - .Team and .Opponent already carry every M2A
+            // field too (unchanged from a direct CalculatedMetricsCalculator.Calculate(...)
+            // call on each side), so this single call covers both without duplicating
+            // either calculator.
+            var gameMetrics = GameCalculatedMetricsCalculator.Calculate(team, opponent);
+            var teamMetrics = gameMetrics.Team;
 
             // Offense
             if ((team.Turnovers - opponent.Turnovers) >= profile.TurnoverDiffToFlag)
@@ -97,7 +99,17 @@ namespace CoachHoopsAI.Domain.Rules
             if (opponentFieldGoalPct >= profile.OpponentHighFieldGoalPct)
                 tags.Add(ProblemTag.InteriorDefenseProblem);
 
-            if (opponentThreePointPct >= profile.OpponentHotThreePct && opponent.ThreePointsAttempted >= profile.OpponentHotThreeAttemptsMin)
+            // Milestone 3: migrated the percentage side off LegacyPercentageBridge onto
+            // gameMetrics.Opponent.ThreePointPercentage (M2A, via M2B above) - an
+            // identical formula (ThreePointsMade / ThreePointsAttempted, 0.0 when
+            // ThreePointsAttempted is zero), so this is a mechanically equivalent
+            // migration with no behavior change: same trigger, same thresholds, same
+            // tag, no RulesetVersion bump. The trigger itself was already sound and is
+            // unchanged - a measured shooting result gated on a minimum attempts
+            // sample (OpponentHotThreeAttemptsMin), not an inferred tactical cause; see
+            // Docs/03-domain-and-rules.md. PerimeterDefenseProblem below still reads
+            // the LegacyPercentageBridge-derived opponentThreePointPct, left untouched.
+            if (gameMetrics.Opponent.ThreePointPercentage >= profile.OpponentHotThreePct && opponent.ThreePointsAttempted >= profile.OpponentHotThreeAttemptsMin)
                 tags.Add(ProblemTag.OpponentHotFromThree);
 
             if (opponentThreePointPct >= 0.36 && opponent.ThreePointsAttempted >= team.ThreePointsAttempted + 5)

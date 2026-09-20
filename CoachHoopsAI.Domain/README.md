@@ -61,6 +61,10 @@ It defines the concepts, language, and deterministic rules used to analyze games
   `ThreePointPercentage`/`DefensiveReboundPercentage` via
   `GameCalculatedMetricsCalculator` directly; the rest of M2A/M2B/M2C still
   has no consumer - see `Docs/03-domain-and-rules.md`
+- `OpponentHotFromThree` (an M1 rule, trigger unchanged) also reads the
+  opponent's `ThreePointPercentage` via `GameCalculatedMetricsCalculator`
+  instead of `LegacyPercentageBridge` - a same-formula data-source migration,
+  not a new or refined finding - see `Docs/03-domain-and-rules.md`
 - `LowFreeThrowRate` replaced `LackOfPaintPressure`'s trigger (fouls + score,
   with no defensible connection to what it claimed to measure); the
   `LackOfPaintPressure` enum member is kept, but `StatRulesEngine` no longer
