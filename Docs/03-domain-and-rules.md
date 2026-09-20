@@ -963,6 +963,122 @@ either a final box score or a live in-game snapshot; adding this finding
 properly would require extending the input model, not just re-deriving a
 threshold from data already on hand.
 
+### `FoulsProblem` (refined, same tag)
+
+**Old trigger:**
+
+```text
+team.PersonalFouls - opponent.PersonalFouls >= profile.FoulsDiffToFlag
+```
+
+A pure differential, with no absolute floor and no score condition.
+Per-level `FoulsDiffToFlag`: EasyBasket 4, Youth 5, Amateur 5, Pro 4,
+Amateur_Development 6.
+
+**What this trigger already got right.** Unlike most of the tags audited in
+this document, a foul count directly supports a foul-related finding - no
+inference is needed to connect "personal fouls" to "a foul finding," the way
+raw FG% had to be connected to "interior defense" via an unsupported leap.
+The trigger also reads no causal information (positioning, rotations,
+discipline, officiating, aggression) and no score - it was already a
+measured-result-only finding.
+
+**What it does not do: it is not normalized by elapsed time or
+possessions.** Comparing `team.PersonalFouls` and `opponent.PersonalFouls`
+at the same moment is not the same as accounting for how much of the game
+that moment represents - a five-foul gap five minutes in is not equivalent
+to a five-foul gap forty minutes in, and this trigger cannot tell the two
+apart. `StatRulesEngine.Evaluate` has no access to `GameFormat`/`GameTiming`
+at all (an engine-wide limitation, not specific to this rule - see the
+Compatibility boundary section of `CLAUDE.md`), so this trigger genuinely
+cannot distinguish an early, thin sample from a full-game one. The
+differential is **retained as-is for backward compatibility and because it
+still detects a real relative imbalance**, not because this review found it
+already time-aware. Early-live-game confidence - how much a count or rate
+like this should be trusted before enough of the game has been played -
+remains an open, unresolved general concern for this rule and for every
+other count/rate-based rule in `StatRulesEngine`, not something this
+refinement resolves.
+
+**The gap: a differential-only trigger can hide a high foul total when both
+teams foul frequently.** Reading only the *gap* between two counts means a
+genuinely foul-heavy game on both sides never trips it: team 20 fouls,
+opponent 17, diff 3 - below `FoulsDiffToFlag` (5) at every level - never
+fired, no matter how high the absolute total climbed, as long as the
+opponent kept pace. This is a real under-inclusion, not a hypothetical one.
+
+**The `FoulRate` question.** `TeamCalculatedMetrics.FoulRate` (M2B) exists:
+`team.PersonalFouls / opponentPossessions` - fouls per *opponent* estimated
+possession, `null` only when `opponentPossessions == 0` exactly, but (like
+every `EstimatedPossessions`-derived field) capable of a non-null, nonsensical
+*negative* rate if `opponentPossessions` goes negative on invalid input - the
+same open validation gap `OffensiveEfficiencyProblem` already has to guard
+against. It was deliberately **not** adopted here:
+
+- It solves no problem the count domain doesn't already solve. The
+  under-inclusion above is fully fixed by a second, independent absolute-count
+  condition - no rate or possession math is needed.
+- Its unit (fouls per opponent possession, not "per 100" like
+  `OffensiveRating`) is abstract. A coach reads "we committed 18 fouls" far
+  more naturally than "we fouled at 0.19 per opponent possession," and this
+  finding's whole value is being an immediately legible, literal count.
+- Adopting it would import the non-positive-possessions edge case for no
+  offsetting benefit - complexity without a demonstrated need, which this
+  review's own guidance warns against.
+
+**Decision: refine in place - same tag, no new enum member.** A second,
+independent condition, `FoulsHighCountToFlag`, was added: a plain absolute
+foul count that fires regardless of the opponent's own total. It is OR'd with
+the unchanged differential, so this is a strict expansion, not a
+replacement - every input that fired before still fires; a new class of
+high-total-on-both-sides games now also fires. New trigger:
+
+```text
+(team.PersonalFouls - opponent.PersonalFouls) >= profile.FoulsDiffToFlag
+  OR
+team.PersonalFouls >= profile.FoulsHighCountToFlag
+```
+
+`FoulsHighCountToFlag`'s five per-level values (EasyBasket 14, Youth 16,
+Amateur 18, Pro 20, Amateur_Development 17) are **explicit project defaults
+chosen for this review, not a universal coaching standard** - free to be
+retuned later with real data, the same caveat every other M3 threshold in
+this document carries.
+
+**The differential's low-absolute-total boundary is retained behavior, not
+sample protection - do not read it as one.** The differential branch cannot
+fire below `team.PersonalFouls == FoulsDiffToFlag` (4-6 depending on level),
+since `diff = team - opponent <= team` whenever `opponent.PersonalFouls >=
+0`. That arithmetic fact means, at Amateur level, an early **5-0** foul
+result still triggers `FoulsProblem` today, exactly as it did before this
+refinement - this was not changed, and this refinement does not fix it. It
+is unlike the percentage-based M3 rules earlier in this document, which
+needed an explicit minimum-sample gate because a *percentage* computed from
+a tiny denominator is mathematically distorted (1-for-1 reads as a "perfect"
+100%, a value with no real meaning at that sample size). A 5-0 foul count
+is not distorted in that sense - 5 fouls is exactly 5 fouls, not an
+extrapolated or inflated figure. But that is a narrow, purely arithmetic
+observation about *this one failure mode*, not a claim that the trigger is
+generally sample-aware or time-aware: it says nothing about whether 5 fouls
+two minutes into a game is a result worth a coach's attention yet, which is
+exactly the elapsed-time question this rule still cannot answer (see above).
+`RulesetVersion` was bumped (`1.9` -> `1.10`) because the
+`FoulsHighCountToFlag` expansion is an observable behavior change - inputs
+exist today that trigger `FoulsProblem` under the new rule and did not
+under the old one - not because the differential's own behavior changed.
+
+**Live vs. final analyses.** `StatRulesEngine.Evaluate` does not take
+`GameFormat`/`GameTiming` at all (an engine-wide limitation, not specific to
+this rule - see the Compatibility boundary section of `CLAUDE.md`), so
+neither condition in this trigger is aware of elapsed game time, and neither
+can distinguish a two-minute-old count from a full-game one. This was true
+of the original differential before this review and remains true of the
+expanded rule after it; closing it would mean threading `GameFormat`/
+`GameTiming` through `StatRulesEngine.Evaluate` for every rule, a change well
+beyond the scope of this slice. Early-live-game confidence stays an open,
+general concern for this and every other count/rate-based `StatRulesEngine`
+rule.
+
 ## Philosophy
 
 Rules represent �coach-agreeable� heuristics, not absolute truth.

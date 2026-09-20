@@ -13,8 +13,8 @@ Repository-specific instructions for AI-assisted development on CoachHoopsAI.
   M2B possession/cross-team metrics, M2C live estimated pace) is complete on
   `main`. Not yet tagged.
 - Verified 2026-09-20: `dotnet build CoachHoopsAI.sln` succeeds with no
-  errors; `dotnet test CoachHoopsAI.sln` passes 230 tests, 0 failed
-  (136 + 14 + 12 + 68 across the four test projects below). Treat this as a
+  errors; `dotnet test CoachHoopsAI.sln` passes 239 tests, 0 failed
+  (145 + 14 + 12 + 68 across the four test projects below). Treat this as a
   dated snapshot, not a permanent expected count - re-run rather than
   trusting this number as it ages.
 - Four test projects, no mocking framework, hand-written fakes only:
@@ -166,13 +166,16 @@ facts derived from raw stats, never rounded internally, never folded into
   covered elsewhere, so it was replaced rather than retired outright),
   `TransitionDefenseProblem` retired with no replacement tag (its only
   measurable content - elevated team turnovers - was already covered by
-  `TurnoverProblem`).
+  `TurnoverProblem`), `FoulsProblem` refined in place (same tag - the
+  differential trigger was sound but under-inclusive, so an absolute
+  foul-count condition was added alongside it; deliberately not migrated to
+  `FoulRate`).
 - **M4** - sessions/snapshots.
 - **M5** - LLM/Admin integration built on the above.
 
 ## Next steps (M3)
 
-Eight slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
+Nine slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
 (Milestone 3)" section for full rationale:
 
 - `LowEffectiveFieldGoalPercentage` (`StatRulesEngine`) flags a low team
@@ -330,13 +333,48 @@ Eight slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
   retirement. Same pattern as `PerimeterDefenseProblem`: the measurable
   content is redundant with an existing finding, so nothing replaces it -
   no renamed turnover- or score-margin-based tag was added.
-- `AnalysisHistoryService.RulesetVersion` was bumped seven times across these
-  eight slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
+- `FoulsProblem`'s differential trigger (`team.PersonalFouls -
+  opponent.PersonalFouls >= FoulsDiffToFlag`) was reviewed and found
+  **directionally sound** - unlike every other rule reviewed in this
+  document, a foul count directly supports a foul finding with no inferential
+  leap, and it already read no causal or score information. It was found
+  **under-inclusive**, though: reading only the gap between two counts means
+  a genuinely foul-heavy game on both sides (e.g. 20 fouls to 17, diff 3)
+  never fired, however high the absolute total climbed, as long as the
+  opponent kept pace. A second, independent condition -
+  `FoulsHighCountToFlag`, a plain absolute foul count - was OR'd into the
+  same tag to close that gap; this is a strict expansion (everything that
+  fired before still fires) refined **in place, same tag, no new enum
+  member**, matching the reused-trigger pattern of
+  `OffensiveEfficiencyProblem`/`TooManyThreePointAttempts` rather than a
+  retirement. `TeamCalculatedMetrics.FoulRate` (M2B, fouls per opponent
+  estimated possession) was deliberately **not** adopted: the demonstrated
+  gap is fully solved within the count domain, `FoulRate`'s unit is far less
+  natural for a coach than a plain foul count, and it would import the same
+  non-positive-`EstimatedPossessions` edge case `OffensiveEfficiencyProblem`
+  already guards against, for no offsetting benefit. **The differential is
+  retained as-is, unchanged, for backward compatibility and because it still
+  detects a real relative imbalance - it is NOT normalized by elapsed game
+  time or possessions.** Comparing both teams' foul counts at the same
+  moment is not the same as accounting for how much of the game that moment
+  represents: a five-foul gap after five minutes is not equivalent to a
+  five-foul gap after forty, and `StatRulesEngine.Evaluate` has no
+  `GameFormat`/`GameTiming` access to tell the two apart (an engine-wide
+  limitation, not specific to this rule). The differential still permits an
+  early **5-0** result to trigger `FoulsProblem` at Amateur level, exactly as
+  before this refinement - this was not changed. Early-live-game confidence
+  for this and every other count/rate-based rule remains an open, unresolved
+  general concern, not something this refinement closes.
+  `FoulsHighCountToFlag`'s five per-level values are explicit project
+  defaults chosen for this review, not a universal coaching standard.
+- `AnalysisHistoryService.RulesetVersion` was bumped eight times across these
+  nine slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
   `OffensiveEfficiencyProblem`, `1.4` -> `1.5` for `TooManyThreePointAttempts`,
   `1.5` -> `1.6` for `LowDefensiveReboundPercentage`, `1.6` -> `1.7` for
   `PerimeterDefenseProblem`'s retirement, `1.7` -> `1.8` for
   `InteriorDefenseProblem`'s retirement/replacement, `1.8` -> `1.9` for
-  `TransitionDefenseProblem`'s retirement) to mark each change.
+  `TransitionDefenseProblem`'s retirement, `1.9` -> `1.10` for
+  `FoulsProblem`'s refinement) to mark each change.
 
 `OpponentHotFromThree` was reviewed against the same criteria and found
 already sound: a measured opponent shooting result gated on a minimum
@@ -391,7 +429,15 @@ these values:
 
 Live-sample confidence (how much a metric like `EstimatedPace` should be
 trusted early in a game, before enough of it has been played) is also still
-an open, unaddressed concern - not resolved by M2A/M2B/M2C.
+an open, unaddressed concern - not resolved by M2A/M2B/M2C. `FoulsProblem`'s
+review (above) surfaced a concrete instance of the same general concern in
+`StatRulesEngine`: its differential trigger still permits an early 5-0 foul
+result to fire at Amateur level, because the rule has no access to
+`GameFormat`/`GameTiming` and cannot tell an early, thin sample from a
+full-game one. That trigger was deliberately left as-is rather than expanded
+into timing-aware logic - fixing it properly would mean threading
+`GameFormat`/`GameTiming` through `StatRulesEngine.Evaluate` for every rule,
+not a single-slice change.
 
 ## Decisions that must survive a fresh conversation
 

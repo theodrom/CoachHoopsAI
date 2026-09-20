@@ -110,6 +110,21 @@ It defines the concepts, language, and deterministic rules used to analyze games
   rule (unchanged by this retirement). The `TransitionDefenseProblem` enum
   member is kept, but `StatRulesEngine` no longer triggers it - see
   `Docs/03-domain-and-rules.md`
+- `FoulsProblem`'s trigger was refined in place (same tag, no new enum
+  member): the original differential condition (`FoulsDiffToFlag`) was found
+  directionally sound and is unchanged, but under-inclusive on its own, since
+  it can hide a real foul problem when both teams foul heavily. A second,
+  independent absolute-count condition (`FoulsHighCountToFlag`) was OR'd in
+  to close that gap - a strict expansion, not a replacement. Deliberately
+  stayed in plain foul-count terms rather than adopting `TeamCalculatedMetrics.FoulRate`
+  (M2B), which solves no problem the count domain doesn't already solve here
+  and reads as a far less natural coaching observation. The differential is
+  retained for backward compatibility and relative imbalance, but is **not**
+  normalized by elapsed time or possessions (`StatRulesEngine.Evaluate` has
+  no `GameFormat`/`GameTiming` access) - it still permits an early 5-0 foul
+  result to fire at Amateur level; early-live-game confidence remains an
+  open, unresolved concern, not something this refinement resolves - see
+  `Docs/03-domain-and-rules.md`
 
 ---
 

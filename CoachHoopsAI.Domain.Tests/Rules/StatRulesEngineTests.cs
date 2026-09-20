@@ -1169,12 +1169,155 @@ public class StatRulesEngineTests
     [InlineData(6, true)]
     public void Evaluate_FoulsDiff_Boundary(int diff, bool expectTag)
     {
-        var opponent = HealthyOpponent();
-        var team = Healthy() with { PersonalFouls = opponent.PersonalFouls + diff };
+        // opponent.PersonalFouls held at 0 (rather than HealthyOpponent's default
+        // 16) so team.PersonalFouls stays well below FoulsHighCountToFlag (18) at
+        // every diff tested here - isolates the differential boundary from the
+        // absolute-count condition added below.
+        var opponent = HealthyOpponent() with { PersonalFouls = 0 };
+        var team = Healthy() with { PersonalFouls = diff };
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
         Assert.Equal(expectTag, tags.Contains(ProblemTag.FoulsProblem));
+    }
+
+    // Milestone 3: FoulsProblem's differential trigger (FoulsDiffToFlag, tested
+    // above) was found directionally sound and is unchanged. It was found
+    // under-inclusive, though: it can hide a real foul problem when both teams
+    // foul heavily, since only the GAP between the two counts is read, never the
+    // absolute total. FoulsHighCountToFlag (a plain foul count, not FoulRate) was
+    // added as a second, independent condition to close that gap - a strict
+    // expansion, not a replacement. Default profile (Amateur-tier):
+    // FoulsDiffToFlag = 5, FoulsHighCountToFlag = 18.
+
+    [Theory]
+    [InlineData(17, false)] // team.PersonalFouls just below FoulsHighCountToFlag (18)
+    [InlineData(18, true)]  // at the threshold (boundary)
+    [InlineData(19, true)]  // above the threshold
+    public void Evaluate_FoulsHighCount_Boundary(int teamPersonalFouls, bool expectTag)
+    {
+        // opponent.PersonalFouls held close to the team's count (15) throughout, so
+        // the differential never reaches FoulsDiffToFlag (5) at any point tested -
+        // isolates the absolute-count boundary from the differential condition.
+        var opponent = HealthyOpponent() with { PersonalFouls = 15 };
+        var team = Healthy() with { PersonalFouls = teamPersonalFouls };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.FoulsProblem));
+    }
+
+    [Fact]
+    public void Evaluate_HighTeamFoulsWithOpponentAlsoHigh_TriggersFoulsProblemViaAbsoluteCount()
+    {
+        // The exact kind of case the old, differential-only trigger missed: team
+        // 20 fouls, opponent 17 fouls - diff = 3, below FoulsDiffToFlag (5), so the
+        // original rule would never have fired here despite a genuinely high team
+        // foul total. FoulsHighCountToFlag (18) catches it independently.
+        var opponent = HealthyOpponent() with { PersonalFouls = 17 };
+        var team = Healthy() with { PersonalFouls = 20 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.FoulsProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_LargeFoulDifferentialWithLowAbsoluteTotal_RetainedFiveZeroBoundary_IsNotSampleProtection()
+    {
+        // Documents a deliberately RETAINED limitation, not a fix: the differential
+        // branch can never fire below team.PersonalFouls == FoulsDiffToFlag (5 at
+        // Amateur level), since diff = team - opponent <= team whenever
+        // opponent.PersonalFouls >= 0. That means a 5-0 foul read still triggers
+        // FoulsProblem today, exactly as it did before this review - unchanged by
+        // the FoulsHighCountToFlag addition above.
+        //
+        // This boundary must NOT be read as a minimum-sample gate the way
+        // AttemptsMin/PossessionsMin/OpportunitiesMin are elsewhere in this file.
+        // Those gates exist because a PERCENTAGE from a tiny denominator is
+        // mathematically distorted (1-for-1 reads as a "perfect" 100%, a number
+        // with no real meaning at that sample size) - the gate corrects a
+        // distortion. A plain COUNT has no equivalent distortion: 5 fouls is
+        // exactly 5 fouls, whether logged two minutes into a live game or across a
+        // full 40-minute final box score. What this trigger genuinely cannot do is
+        // tell those two cases apart, because StatRulesEngine.Evaluate has no
+        // GameFormat/GameTiming access at all - an early 5-0 read and a final 5-0
+        // read are indistinguishable to it. The differential is retained here for
+        // backward compatibility and because it still detects a real relative
+        // imbalance, not because this boundary was judged safe from a live,
+        // early-game standpoint - that question (early-live-game confidence) is an
+        // open, unresolved concern this review explicitly does not close (see
+        // Docs/03-domain-and-rules.md and CLAUDE.md).
+        var opponent = HealthyOpponent() with { PersonalFouls = 0 };
+
+        var belowBoundary = Healthy() with { PersonalFouls = 4 };
+        Assert.DoesNotContain(ProblemTag.FoulsProblem, _engine.Evaluate(belowBoundary, opponent, _profile));
+
+        var atBoundary = Healthy() with { PersonalFouls = 5 }; // the retained 5-0 case
+        Assert.Contains(ProblemTag.FoulsProblem, _engine.Evaluate(atBoundary, opponent, _profile));
+    }
+
+    [Fact]
+    public void Evaluate_FoulsProblem_ZeroFoulsBothSides_DoesNotTrigger()
+    {
+        // Zero fouls for both teams - representative of the very start of a live
+        // analysis. Neither condition can be satisfied from an empty sample.
+        var team = Healthy() with { PersonalFouls = 0 };
+        var opponent = HealthyOpponent() with { PersonalFouls = 0 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.FoulsProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_FoulsProblem_ReadsThresholdsFromProfile_NotHardcoded()
+    {
+        // Identical fouls (team 16, opponent 15 - diff 1, well below any tested
+        // FoulsDiffToFlag) judged against two profiles that differ only in
+        // FoulsHighCountToFlag - proves the new absolute-count threshold is
+        // profile-driven per level, not a hardcoded constant.
+        var team = Healthy() with { PersonalFouls = 16 };
+        var opponent = HealthyOpponent() with { PersonalFouls = 15 };
+
+        var lenientProfile = new RulesProfile { FoulsDiffToFlag = 5, FoulsHighCountToFlag = 20 };
+        var strictProfile = new RulesProfile { FoulsDiffToFlag = 5, FoulsHighCountToFlag = 16 };
+
+        var lenientTags = _engine.Evaluate(team, opponent, lenientProfile);
+        var strictTags = _engine.Evaluate(team, opponent, strictProfile);
+
+        Assert.DoesNotContain(ProblemTag.FoulsProblem, lenientTags);
+        Assert.Contains(ProblemTag.FoulsProblem, strictTags);
+    }
+
+    [Fact]
+    public void Evaluate_FoulsProblem_IndependentOfScoreMargin()
+    {
+        // Fouls fire while comfortably winning, and stay silent while losing
+        // heavily with ordinary fouls - proves neither condition reads score at
+        // all, in either direction.
+        var winningTeam = Healthy() with { Points = 100, PersonalFouls = 20 };
+        var losingOpponentButFewFouls = HealthyOpponent() with { Points = 60, PersonalFouls = 17 };
+        Assert.Contains(ProblemTag.FoulsProblem, _engine.Evaluate(winningTeam, losingOpponentButFewFouls, _profile));
+
+        var losingTeam = Healthy() with { Points = 50 };
+        var winningOpponent = HealthyOpponent() with { Points = 100 };
+        Assert.DoesNotContain(ProblemTag.FoulsProblem, _engine.Evaluate(losingTeam, winningOpponent, _profile));
+    }
+
+    [Fact]
+    public void Evaluate_FoulsProblem_CoOccursWithUnrelatedFinding_WithoutDuplication()
+    {
+        // FoulsProblem fires (via the new absolute-count branch) alongside a
+        // separately-triggered TurnoverProblem.
+        var opponent = HealthyOpponent() with { PersonalFouls = 17 };
+        var team = Healthy() with { PersonalFouls = 20, Turnovers = opponent.Turnovers + 5 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.FoulsProblem, tags);
+        Assert.Contains(ProblemTag.TurnoverProblem, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
     }
 
     // Milestone 3: DefensiveReboundProblem's old trigger (opponent.OffensiveRebounds

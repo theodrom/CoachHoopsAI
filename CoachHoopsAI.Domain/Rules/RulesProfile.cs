@@ -41,8 +41,38 @@ namespace CoachHoopsAI.Domain.Rules
         public int TooManyThreeAttemptRateAttemptsMin { get; set; } = 20;
         public double TooManyThreePctMax { get; set; } = 0.33;
 
-        // Fouls
+        // Fouls (Milestone 3 reviewed - FoulsDiffToFlag's differential trigger was
+        // found directionally sound and is unchanged; FoulsHighCountToFlag was
+        // added alongside it, not to replace it). Both are current defaults, not
+        // universal basketball facts. FoulsDiffToFlag flags a team committing
+        // meaningfully more fouls than the opponent in the same game. It is
+        // retained as-is for backward compatibility and because it still detects a
+        // real relative imbalance - but it is NOT normalized by elapsed game time
+        // or possessions: comparing both teams at the same moment is not the same
+        // as accounting for how much of the game that moment represents, so a
+        // five-foul gap after five minutes reads identically to a five-foul gap
+        // after forty. StatRulesEngine.Evaluate has no access to GameFormat/
+        // GameTiming at all (an engine-wide limitation - see CLAUDE.md's
+        // Compatibility boundary section), so this cannot be fixed within this
+        // trigger alone; early-live-game confidence for this and every other
+        // count/rate-based rule remains an open, unresolved concern, not something
+        // this review closes. FoulsHighCountToFlag flags a high absolute foul
+        // total regardless of the opponent's own total, closing the specific gap
+        // where a foul-heavy game on both sides (e.g. 20 fouls to 17) would
+        // otherwise never trigger the differential alone - its five per-level
+        // values are explicit project defaults chosen for this review, not a
+        // universal standard. Both fields are plain foul counts - deliberately not
+        // FoulRate (fouls per opponent estimated possession, M2B): a coach reads
+        // "18 fouls" more naturally than an abstract rate, and FoulRate's
+        // denominator carries the same non-positive-possessions edge case
+        // OffensiveRating already has to guard against, for no benefit the count
+        // domain doesn't already provide here. A high count/differential here is a
+        // measured result only - it does not identify why the fouls happened
+        // (positioning, rotations, discipline, officiating, aggression); TeamStats
+        // has no data to support attributing a cause, and neither condition reads
+        // score.
         public int FoulsDiffToFlag { get; set; } = 5;
+        public int FoulsHighCountToFlag { get; set; } = 18;
 
         // Overall shooting efficiency (effective field-goal %, Milestone 3) - current
         // defaults, not universal basketball facts. eFG% credits three-pointers at

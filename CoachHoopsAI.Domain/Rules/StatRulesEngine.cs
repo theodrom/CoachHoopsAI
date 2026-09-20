@@ -164,7 +164,39 @@ namespace CoachHoopsAI.Domain.Rules
             // part is redundant with an existing finding, not a distinct signal
             // worth a new tag. See Docs/03-domain-and-rules.md for the full
             // rationale and what data a real transition-defense finding would need.
-            if (team.PersonalFouls - opponent.PersonalFouls >= profile.FoulsDiffToFlag)
+            // Milestone 3 refinement: the original differential-only trigger
+            // (preserved below, unchanged) can hide a real foul problem when both
+            // teams foul heavily - e.g. team 20 fouls, opponent 17, diff 3, never
+            // fired despite a high absolute total. Added a second, independent
+            // absolute-count condition (FoulsHighCountToFlag) that fires regardless
+            // of the opponent's total, catching that case without touching the
+            // differential's existing behavior - this is a strict expansion, not a
+            // replacement: everything that triggered before still triggers.
+            // Deliberately stays in plain foul-count terms rather than migrating to
+            // FoulRate (M2B, fouls per opponent estimated possession): a coach
+            // reads "18 fouls" far more naturally than an abstract per-possession
+            // rate, FoulRate's denominator has the same non-positive-possessions
+            // edge case OffensiveEfficiencyProblem already has to guard against,
+            // and the demonstrated gap here is fully solved within the count
+            // domain, so introducing a rate adds complexity without a clear
+            // benefit (see Docs/03-domain-and-rules.md). The differential branch
+            // is UNCHANGED and retained as-is for backward compatibility and
+            // because it still detects a real relative imbalance - it is NOT
+            // normalized by elapsed game time or possessions (StatRulesEngine.Evaluate
+            // has no GameFormat/GameTiming access at all), so it still permits an
+            // early 5-0 foul read to trigger FoulsProblem at Amateur level exactly
+            // as before this refinement. That is a retained limitation, not sample
+            // protection: unlike a small-attempts percentage (mathematically
+            // distorted, e.g. 1-for-1 reading as a "perfect" 100%), a plain count
+            // isn't distorted by a small sample - 5 fouls is exactly 5 fouls - but
+            // this trigger still cannot tell an early, thin read from a full-game
+            // one; early-live-game confidence remains an open, unresolved concern
+            // (see Docs/03-domain-and-rules.md and CLAUDE.md). No score-margin
+            // input is used, by design: this finding describes a measured foul
+            // count only, not why the fouls happened (positioning, rotations,
+            // discipline, officiating, aggression) or whether the score is related.
+            if ((team.PersonalFouls - opponent.PersonalFouls) >= profile.FoulsDiffToFlag
+                || team.PersonalFouls >= profile.FoulsHighCountToFlag)
                 tags.Add(ProblemTag.FoulsProblem);
 
 
