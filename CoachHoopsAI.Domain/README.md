@@ -83,6 +83,14 @@ It defines the concepts, language, and deterministic rules used to analyze games
   `team.DefensiveRebounds`, unlike the two refinements above); the
   `DefensiveReboundProblem` enum member is kept, but `StatRulesEngine` no
   longer triggers it - see `Docs/03-domain-and-rules.md`
+- `PerimeterDefenseProblem` is retired with **no replacement tag**: its old
+  trigger read the same opponent three-point percentage/volume evidence as
+  `OpponentHotFromThree`, just with a hardcoded, non-profile-driven threshold
+  and a materially weaker sample-size gate, wrapped in an unsupported
+  "perimeter defense" causal label. `OpponentHotFromThree` is unchanged and
+  remains the literal, profile-tunable observation of this evidence; the
+  `PerimeterDefenseProblem` enum member is kept, but `StatRulesEngine` no
+  longer triggers it - see `Docs/03-domain-and-rules.md`
 
 ---
 

@@ -21,7 +21,7 @@ public sealed class ProblemTagDto
         5 => "Lack Of Paint Pressure", // retired ruleset 1.3 onward - StatRulesEngine no longer triggers this; kept for historical records
         6 => "Defensive Rebound Problem", // retired ruleset 1.6 onward - StatRulesEngine no longer triggers this; kept for historical records
         7 => "Opponent Hot From Three",
-        8 => "Perimeter Defense Problem",
+        8 => "Perimeter Defense Problem", // retired ruleset 1.7 onward - StatRulesEngine no longer triggers this; kept for historical records
         9 => "Interior Defense Problem",
         10 => "Transition Defense Problem",
         11 => "Fouls Problem",

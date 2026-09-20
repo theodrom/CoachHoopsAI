@@ -762,18 +762,92 @@ public class StatRulesEngineTests
         Assert.Equal(legacyPct, m2Pct, precision: 10);
     }
 
+    // Milestone 3: PerimeterDefenseProblem's old trigger (hardcoded opponent 3P% >=
+    // 0.36, gated on opponent 3PA >= team 3PA + 5, bypassing RulesProfile entirely)
+    // read exactly the same evidence as OpponentHotFromThree - opponent three-point
+    // shooting percentage and volume - but wrapped it in an unsupported "perimeter
+    // defense" tactical diagnosis. Retired with no replacement tag rather than
+    // reused: OpponentHotFromThree above is already the literal, profile-tunable
+    // observation of this same evidence, and reusing the ordinal would have just
+    // restated it under a causally-loaded name.
+
     [Fact]
-    public void Evaluate_OpponentAboveHardcodedThreePointRate_TriggersPerimeterDefenseProblem()
+    public void Evaluate_OpponentAboveHardcodedThreePointRate_NoLongerTriggersPerimeterDefenseProblem()
     {
-        // PerimeterDefenseProblem bypasses RulesProfile: hardcoded opponent 3P% >= 0.36
-        // and opponent 3PA >= team 3PA + 5.
+        // The exact scenario that used to trigger the retired rule.
         var team = Healthy() with { ThreePointsMade = 3, ThreePointsAttempted = 10 };
         // 3P 37/100 = 0.37.
         var opponent = HealthyOpponent() with { ThreePointsMade = 37, ThreePointsAttempted = 100 };
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
-        Assert.Contains(ProblemTag.PerimeterDefenseProblem, tags);
+        Assert.DoesNotContain(ProblemTag.PerimeterDefenseProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OpponentHotFromThree_StillTriggersUnderItsOwnGates_WithPerimeterDefenseProblemAbsent()
+    {
+        // Proves the retirement of PerimeterDefenseProblem did not disturb
+        // OpponentHotFromThree's own, separately-configured gates: 3P 8/20 = 0.40
+        // (>= OpponentHotThreePct 0.38), attempts 20 >= OpponentHotThreeAttemptsMin
+        // (20).
+        var team = Healthy();
+        var opponent = HealthyOpponent() with { ThreePointsMade = 8, ThreePointsAttempted = 20 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.OpponentHotFromThree, tags);
+        Assert.DoesNotContain(ProblemTag.PerimeterDefenseProblem, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
+    }
+
+    [Fact]
+    public void Evaluate_HighOpponentThreePointPct_BelowMinimumAttempts_EmitsNeitherThreePointFinding()
+    {
+        // 3P 4/5 = 0.80 - well above any threshold - but only 5 attempts, below
+        // OpponentHotThreeAttemptsMin (20). Neither the active, literal observation
+        // (OpponentHotFromThree) nor the retired causal diagnosis
+        // (PerimeterDefenseProblem, which no longer triggers under any input) should
+        // read a five-attempt sample as a meaningful finding.
+        var team = Healthy();
+        var opponent = HealthyOpponent() with { ThreePointsMade = 4, ThreePointsAttempted = 5 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.OpponentHotFromThree, tags);
+        Assert.DoesNotContain(ProblemTag.PerimeterDefenseProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_LargeScoreMargin_AloneDoesNotTriggerPerimeterDefenseFinding()
+    {
+        // A large score margin, with opponent three-point shooting held at
+        // HealthyOpponent's own unremarkable baseline (3P 6/20 = 0.30, well below
+        // any threshold). Neither three-point finding depends on score at all - this
+        // guards against either rule ever being made to read score margin as a
+        // stand-in for defensive quality.
+        var team = Healthy() with { Points = 50 };
+        var opponent = HealthyOpponent() with { Points = 100 }; // +50 margin
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.PerimeterDefenseProblem, tags);
+        Assert.DoesNotContain(ProblemTag.OpponentHotFromThree, tags);
+    }
+
+    [Fact]
+    public void ProblemTag_DefenseSectionOrdinals_RemainStableAfterRetirement()
+    {
+        // Locks the persistence-sensitive ordinals around PerimeterDefenseProblem
+        // (retired ruleset 1.7) - AnalysisRecord.ProblemTagsJson stores these as raw
+        // ints, so retiring the tag must never shift its own ordinal or its
+        // neighbors'. Includes the two earlier retirements (ruleset 1.3/1.6) for the
+        // same reason.
+        Assert.Equal(5, (int)ProblemTag.LackOfPaintPressure);
+        Assert.Equal(6, (int)ProblemTag.DefensiveReboundProblem);
+        Assert.Equal(7, (int)ProblemTag.OpponentHotFromThree);
+        Assert.Equal(8, (int)ProblemTag.PerimeterDefenseProblem);
+        Assert.Equal(9, (int)ProblemTag.InteriorDefenseProblem);
     }
 
     [Fact]

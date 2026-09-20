@@ -17,7 +17,6 @@ namespace CoachHoopsAI.Domain.Rules
             var teamFieldGoalPct = LegacyPercentageBridge.FieldGoalPercentage(team);
             var teamThreePointPct = LegacyPercentageBridge.ThreePointPercentage(team);
             var opponentFieldGoalPct = LegacyPercentageBridge.FieldGoalPercentage(opponent);
-            var opponentThreePointPct = LegacyPercentageBridge.ThreePointPercentage(opponent);
 
             // Milestone 3's rules that read the Milestone 2 calculated-metrics layer
             // directly, instead of LegacyPercentageBridge. GameCalculatedMetricsCalculator
@@ -107,13 +106,31 @@ namespace CoachHoopsAI.Domain.Rules
             // tag, no RulesetVersion bump. The trigger itself was already sound and is
             // unchanged - a measured shooting result gated on a minimum attempts
             // sample (OpponentHotThreeAttemptsMin), not an inferred tactical cause; see
-            // Docs/03-domain-and-rules.md. PerimeterDefenseProblem below still reads
-            // the LegacyPercentageBridge-derived opponentThreePointPct, left untouched.
+            // Docs/03-domain-and-rules.md.
             if (gameMetrics.Opponent.ThreePointPercentage >= profile.OpponentHotThreePct && opponent.ThreePointsAttempted >= profile.OpponentHotThreeAttemptsMin)
                 tags.Add(ProblemTag.OpponentHotFromThree);
 
-            if (opponentThreePointPct >= 0.36 && opponent.ThreePointsAttempted >= team.ThreePointsAttempted + 5)
-                tags.Add(ProblemTag.PerimeterDefenseProblem);
+            // Retired as of ruleset 1.7 - StatRulesEngine no longer triggers
+            // PerimeterDefenseProblem. Its old trigger
+            // (opponentThreePointPct >= 0.36 && opponent.ThreePointsAttempted >=
+            // team.ThreePointsAttempted + 5) read exactly the same underlying evidence
+            // as OpponentHotFromThree above (opponent three-point percentage and
+            // volume) but wrapped it in a "perimeter defense" tactical diagnosis -
+            // closeouts, rotations, communication, contest quality, defensive
+            // positioning - none of which TeamStats can establish; opponent 3P% alone
+            // only measures a shooting result, not why it happened. Its volume gate
+            // was also weaker than OpponentHotFromThree's real per-level minimum: as
+            // few as 5 total opponent attempts (if our own team hadn't shot a three
+            // yet) satisfied it, not a meaningful sample for a percentage. Its
+            // threshold bypassed RulesProfile entirely too (hardcoded 0.36, not
+            // tunable per level, unlike every other threshold in this method). Rather
+            // than reuse the tag with a corrected trigger - which would just restate
+            // OpponentHotFromThree's signal under a different, causally-loaded name -
+            // it is retired outright, with no replacement tag: OpponentHotFromThree
+            // above already is the single, literal, profile-tunable observation of
+            // this evidence. The enum member and Admin mapping are kept, never
+            // removed, so already-persisted analysis records keep displaying
+            // correctly. See Docs/03-domain-and-rules.md.
 
             if ((opponent.Points - team.Points) >= profile.LossByPointsToFlagTransition && team.Turnovers >= profile.TurnoversMinToFlagTransition)
                 tags.Add(ProblemTag.TransitionDefenseProblem);

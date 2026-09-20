@@ -679,14 +679,86 @@ identical -
 including the same zero-attempts convention (`0.0`, never `null`, unlike the
 M2B-only fields such as `DefensiveReboundPercentage`), so this is a
 mechanically equivalent migration: same trigger, same per-level thresholds,
-same tag, no `RulesetVersion` bump. `PerimeterDefenseProblem`, which also
-reads `opponentThreePointPct` (against its own hardcoded 0.36 threshold), was
-left reading the `LegacyPercentageBridge` value unchanged - only the local
-feeding `OpponentHotFromThree` was touched.
+same tag, no `RulesetVersion` bump. At the time this migration landed,
+`PerimeterDefenseProblem` also read `opponentThreePointPct` (against its own
+hardcoded 0.36 threshold) and was left unchanged - it has since been retired
+outright; see the next section.
 
 No `RulesProfile` fields were added, removed, or renamed; no enum member was
 added; no Admin label or LLM-prompt wording changed, because none of them
 overclaimed anything to begin with.
+
+### `PerimeterDefenseProblem` (retired, no replacement)
+
+**Old trigger:**
+
+```text
+opponentThreePointPct >= 0.36
+  AND
+opponent.ThreePointsAttempted >= team.ThreePointsAttempted + 5
+```
+
+where `opponentThreePointPct` was `LegacyPercentageBridge.ThreePointPercentage(opponent)`
+(this rule was never migrated onto the M2 calculator, unlike `OpponentHotFromThree`
+above).
+
+Auditing this against `OpponentHotFromThree`'s trigger reveals it reads the
+exact same two facts - the opponent's three-point percentage and volume -
+just measured more loosely:
+
+- **Threshold**: a hardcoded `0.36`, bypassing `RulesProfile` entirely. Every
+  other threshold in `StatRulesEngine`, including `OpponentHotFromThree`'s own
+  `OpponentHotThreePct` (0.38-0.40 depending on level), is profile-driven so
+  it can be tuned per competition level; this one could not be.
+- **Sample-size gate**: `opponent.ThreePointsAttempted >= team.ThreePointsAttempted + 5`
+  is relative to our own volume, not an absolute floor. If our team had not
+  yet attempted a three, as few as **5** opponent attempts satisfied it - not
+  a meaningful sample for a percentage judgment, and far weaker than
+  `OpponentHotFromThree`'s real, per-level `OpponentHotThreeAttemptsMin`
+  (12-25 depending on level).
+- **Name**: unlike `OpponentHotFromThree`'s literal framing, "perimeter
+  defense problem" is a tactical diagnosis - it implies a cause (closeouts,
+  rotations, communication, contest quality, defensive positioning).
+  `TeamStats` has no shot-location, assignment, or possession-by-possession
+  data to establish any of those; opponent 3P% only measures a shooting
+  outcome, not why it happened. Applying the M3 rule established throughout
+  this document - a finding may state a measured result, never assert an
+  unsupported cause - this trigger fails on the same grounds as the retired
+  `LackOfPaintPressure`/`DefensiveReboundProblem` triggers.
+
+**Decision: retired outright, no replacement tag.** Unlike
+`LowFreeThrowRate`/`LowDefensiveReboundPercentage`, which replaced their
+retired predecessors with a corrected trigger on genuinely different or more
+precise data, `PerimeterDefenseProblem` reads *identical* evidence to
+`OpponentHotFromThree` - a rule that already exists, is already correctly
+literal, and is already profile-tunable. Reusing the ordinal with a corrected
+trigger, or appending a new tag, would have created a duplicate finding for
+the same underlying signal under a second name. Instead:
+
+- `StatRulesEngine` no longer triggers `PerimeterDefenseProblem` at all; the
+  `if` block was removed, along with the `opponentThreePointPct` local
+  variable it was the sole remaining reader of (`OpponentHotFromThree` reads
+  `gameMetrics.Opponent.ThreePointPercentage` instead, per the migration
+  above).
+- The enum member is kept, never removed, so existing analysis records that
+  contain it (persisted as the raw ordinal `8`) keep resolving to a real
+  label instead of `Unknown(8)` in Admin.
+- `AnalysisHistoryService.RulesetVersion` was bumped (`1.6` -> `1.7`) to mark
+  that the active rule set changed under these records.
+- No `RulesProfile` field is removed, because none ever backed this trigger -
+  its threshold and gate were hardcoded literals, not configuration.
+- `OpponentHotFromThree` itself is unchanged by this retirement. The audit
+  found no coverage gap worth compensating for: the narrow band where the old
+  rule fired but `OpponentHotFromThree` would not (opponent 3P% between 0.36
+  and the applicable `OpponentHotThreePct`) was only reachable through the old
+  rule's undersized 5-attempt gate - a defect, not a signal worth preserving.
+  Broadening `OpponentHotFromThree` to reclaim that band would reintroduce the
+  same thin-sample problem this retirement removes.
+- `PerimeterDefenseProblem` was never given special Admin-label or LLM-prompt
+  wording (unlike `TooManyThreePointAttempts`), so there is nothing to revert
+  there; `StatRulesEngine` simply stops emitting it for new analyses; only
+  already-persisted history can contain it, and that history is never
+  re-sent to the LLM.
 
 ## Philosophy
 

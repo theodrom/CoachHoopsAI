@@ -57,7 +57,23 @@ namespace CoachHoopsAI.Domain.Enums
 
         // Defense
         OpponentHotFromThree,
+
+        // Retired as of ruleset 1.7 - StatRulesEngine no longer triggers this tag.
+        // Its original trigger (opponent three-point percentage >= a hardcoded 0.36,
+        // gated on opponent.ThreePointsAttempted >= team.ThreePointsAttempted + 5)
+        // read exactly the same evidence as OpponentHotFromThree above - opponent
+        // three-point shooting percentage and volume - but labeled it a "perimeter
+        // defense" tactical diagnosis; TeamStats has no closeout, rotation,
+        // communication, contest-quality, or positioning data to support that
+        // causal claim, and its volume gate (as few as 5 opponent attempts) was
+        // weaker than a meaningful sample. Retired outright rather than reused or
+        // replaced, since OpponentHotFromThree already is the literal,
+        // profile-tunable observation of this same evidence. Kept defined, never
+        // removed, so already-persisted analysis records containing this ordinal
+        // keep displaying correctly (see the ordinal-safety note below). See
+        // Docs/03-domain-and-rules.md for the full rationale.
         PerimeterDefenseProblem,
+
         InteriorDefenseProblem,
         TransitionDefenseProblem,
         FoulsProblem,

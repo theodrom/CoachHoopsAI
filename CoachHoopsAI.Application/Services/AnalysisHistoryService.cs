@@ -23,7 +23,15 @@ namespace CoachHoopsAI.Application.Services
         // (M2B) directly - same ProblemTag.DefensiveReboundProblem kept only for
         // already-persisted history (see Docs/03-domain-and-rules.md's "Findings
         // (Milestone 3)" section, which also covers 1.3/1.4/1.5's changes).
-        private const string RulesetVersion = "1.6";
+        // Bumped to 1.7: PerimeterDefenseProblem is retired with no replacement tag
+        // - its trigger was a causal ("perimeter defense") restatement of the same
+        // opponent three-point evidence OpponentHotFromThree already measures
+        // literally, gated more weakly and not tunable per level. Reviewed the same
+        // way as 1.6's rebounding change, opposite conclusion from the reused
+        // OffensiveEfficiencyProblem/TooManyThreePointAttempts triggers: this data
+        // had no defensible connection to a defensive-positioning cause, so nothing
+        // replaces it rather than reusing or duplicating the tag.
+        private const string RulesetVersion = "1.7";
         private const string PromptVersion = "v2.0";
 
         public AnalysisHistoryService(IGameAnalysisService analysisService, IAnalysisRepository repo)
