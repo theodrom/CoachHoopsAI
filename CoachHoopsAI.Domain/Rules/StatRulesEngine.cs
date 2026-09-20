@@ -16,7 +16,6 @@ namespace CoachHoopsAI.Domain.Rules
 
             var teamFieldGoalPct = LegacyPercentageBridge.FieldGoalPercentage(team);
             var teamThreePointPct = LegacyPercentageBridge.ThreePointPercentage(team);
-            var opponentFieldGoalPct = LegacyPercentageBridge.FieldGoalPercentage(opponent);
 
             // Milestone 3's rules that read the Milestone 2 calculated-metrics layer
             // directly, instead of LegacyPercentageBridge. GameCalculatedMetricsCalculator
@@ -95,8 +94,21 @@ namespace CoachHoopsAI.Domain.Rules
                 tags.Add(ProblemTag.OffensiveEfficiencyProblem);
 
             // Defense
-            if (opponentFieldGoalPct >= profile.OpponentHighFieldGoalPct)
-                tags.Add(ProblemTag.InteriorDefenseProblem);
+            // Retired as of ruleset 1.8 - StatRulesEngine no longer triggers
+            // InteriorDefenseProblem. Its old trigger (opponentFieldGoalPct >=
+            // OpponentHighFieldGoalPct, opponentFieldGoalPct being the opponent's raw,
+            // unweighted FG% across every shot type combined) had NO minimum-attempts
+            // gate at all - the weakest sample protection of any rule in this method -
+            // and TeamStats has no shot-location data to support an "interior" defense
+            // finding specifically. Replaced below by
+            // HighOpponentEffectiveFieldGoalPercentage, which reads the opponent's
+            // EffectiveFieldGoalPercentage (M2A via gameMetrics.Opponent) instead - the
+            // same eFG% formula used for our own LowEffectiveFieldGoalPercentage above,
+            // gated on a real FieldGoalsAttempted minimum. See
+            // Docs/03-domain-and-rules.md for the full rationale.
+            if (opponent.FieldGoalsAttempted >= profile.OpponentHighEffectiveFieldGoalPctAttemptsMin
+                && gameMetrics.Opponent.EffectiveFieldGoalPercentage >= profile.OpponentHighEffectiveFieldGoalPct)
+                tags.Add(ProblemTag.HighOpponentEffectiveFieldGoalPercentage);
 
             // Milestone 3: migrated the percentage side off LegacyPercentageBridge onto
             // gameMetrics.Opponent.ThreePointPercentage (M2A, via M2B above) - an

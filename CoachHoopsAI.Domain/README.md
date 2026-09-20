@@ -54,13 +54,13 @@ It defines the concepts, language, and deterministic rules used to analyze games
   `GameFormat`/`GameTiming` adds live estimated pace. Reuses
   CalculatedMetricsCalculator rather than duplicating it
 - `StatRulesEngine`'s `LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
-  `OffensiveEfficiencyProblem`, `TooManyThreePointAttempts`, and
-  `LowDefensiveReboundPercentage` rules (Milestone 3) are the production
-  consumers of this layer so far, reading `EffectiveFieldGoalPercentage`/
-  `FreeThrowRate`/`OffensiveRating`/`ThreePointAttemptRate`/
-  `ThreePointPercentage`/`DefensiveReboundPercentage` via
-  `GameCalculatedMetricsCalculator` directly; the rest of M2A/M2B/M2C still
-  has no consumer - see `Docs/03-domain-and-rules.md`
+  `OffensiveEfficiencyProblem`, `TooManyThreePointAttempts`,
+  `LowDefensiveReboundPercentage`, and `HighOpponentEffectiveFieldGoalPercentage`
+  rules (Milestone 3) are the production consumers of this layer so far,
+  reading `EffectiveFieldGoalPercentage`/`FreeThrowRate`/`OffensiveRating`/
+  `ThreePointAttemptRate`/`ThreePointPercentage`/`DefensiveReboundPercentage`
+  via `GameCalculatedMetricsCalculator` directly; the rest of M2A/M2B/M2C
+  still has no consumer - see `Docs/03-domain-and-rules.md`
 - `OpponentHotFromThree` (an M1 rule, trigger unchanged) also reads the
   opponent's `ThreePointPercentage` via `GameCalculatedMetricsCalculator`
   instead of `LegacyPercentageBridge` - a same-formula data-source migration,
@@ -90,6 +90,16 @@ It defines the concepts, language, and deterministic rules used to analyze games
   "perimeter defense" causal label. `OpponentHotFromThree` is unchanged and
   remains the literal, profile-tunable observation of this evidence; the
   `PerimeterDefenseProblem` enum member is kept, but `StatRulesEngine` no
+  longer triggers it - see `Docs/03-domain-and-rules.md`
+- `HighOpponentEffectiveFieldGoalPercentage` replaced `InteriorDefenseProblem`'s
+  trigger (the opponent's raw, unweighted FG% with **no minimum-attempts gate
+  at all** - the weakest sample protection of any rule in `StatRulesEngine`).
+  Unlike `PerimeterDefenseProblem`, this signal was not already covered
+  elsewhere, so it was replaced rather than retired outright: the new tag
+  reads the opponent's `EffectiveFieldGoalPercentage` (M2A), gated on a real
+  `FieldGoalsAttempted` minimum, and is distinct from `OpponentHotFromThree`
+  (three-point shooting specifically vs. overall shot-profile efficiency).
+  The `InteriorDefenseProblem` enum member is kept, but `StatRulesEngine` no
   longer triggers it - see `Docs/03-domain-and-rules.md`
 
 ---

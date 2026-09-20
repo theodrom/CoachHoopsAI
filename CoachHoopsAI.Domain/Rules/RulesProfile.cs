@@ -44,9 +44,6 @@ namespace CoachHoopsAI.Domain.Rules
         // Fouls
         public int FoulsDiffToFlag { get; set; } = 5;
 
-        // “Interior defense” proxy
-        public double OpponentHighFieldGoalPct { get; set; } = 0.52;
-
         // Transition defense proxy
         public int LossByPointsToFlagTransition { get; set; } = 10;
         public int TurnoversMinToFlagTransition { get; set; } = 15;
@@ -110,5 +107,39 @@ namespace CoachHoopsAI.Domain.Rules
         // attributing one.
         public double OurLowDefensiveReboundPct { get; set; } = 0.65;
         public int OurLowDefensiveReboundPctOpportunitiesMin { get; set; } = 20;
+
+        // Opponent's overall effective field-goal percentage (Milestone 3;
+        // GameCalculatedMetricsCalculator/M2A via M2B) - newly chosen project
+        // defaults, not universal basketball facts and not a reuse of the retired
+        // InteriorDefenseProblem trigger's numbers. Replaces that old trigger
+        // (OpponentHighFieldGoalPct, removed - the opponent's raw, unweighted FG%
+        // across every shot type combined, with NO minimum-attempts gate at all).
+        // This reads the opponent's EffectiveFieldGoalPercentage directly - the same
+        // eFG% formula as OurLowEffectiveFieldGoalPct above, crediting three-pointers
+        // at 1.5x a two-pointer. eFG% is systematically higher than raw FG% for any
+        // team with real three-point volume, and that gap widens with how much of
+        // the shot diet is threes - reusing the old raw-FG%-calibrated numbers as-is
+        // would have made this trigger fire more easily than the retired rule did
+        // for equivalent-quality shooting, which is not the intent. The five
+        // per-level values (see CoachHoopsAI.Api/appsettings.json) were chosen
+        // deliberately for eFG%'s scale instead, each a few points above the old
+        // field's corresponding value, sized by how much three-point volume is
+        // realistic at that level: EasyBasket's bump is smallest (young players
+        // rarely shoot threes, so eFG% and raw FG% barely diverge there), Pro's
+        // bump is largest (the highest-volume, highest-value three-point shooting),
+        // and Youth/Amateur_Development/Amateur fall in between - see
+        // Docs/03-domain-and-rules.md for the exact values and the full rationale.
+        // AttemptsMin mirrors OurLowEffectiveFieldGoalPctAttemptsMin's per-level
+        // values and reasoning (same metric family, gated on the same
+        // FieldGoalsAttempted denominator) - the old trigger had no equivalent gate
+        // at all, so a single early shot could previously read as a stable
+        // percentage. A high percentage here is a measured shooting-efficiency
+        // result only - it does not identify a defensive cause (rim protection,
+        // rotations, closeouts, positioning, effort); TeamStats has no data to
+        // support attributing one. Distinct from OpponentHotThreePct/
+        // OpponentHotThreeAttemptsMin above, which read three-point shooting
+        // specifically - a team can trip one without the other.
+        public double OpponentHighEffectiveFieldGoalPct { get; set; } = 0.56;
+        public int OpponentHighEffectiveFieldGoalPctAttemptsMin { get; set; } = 20;
     }
 }

@@ -22,13 +22,14 @@ public sealed class ProblemTagDto
         6 => "Defensive Rebound Problem", // retired ruleset 1.6 onward - StatRulesEngine no longer triggers this; kept for historical records
         7 => "Opponent Hot From Three",
         8 => "Perimeter Defense Problem", // retired ruleset 1.7 onward - StatRulesEngine no longer triggers this; kept for historical records
-        9 => "Interior Defense Problem",
+        9 => "Interior Defense Problem", // retired ruleset 1.8 onward - StatRulesEngine no longer triggers this; kept for historical records
         10 => "Transition Defense Problem",
         11 => "Fouls Problem",
         12 => "Pace Control Problem",
         13 => "Low Effective Field Goal Percentage",
         14 => "Low Free Throw Rate",
         15 => "Low Defensive Rebound Percentage",
+        16 => "High Opponent Effective Field Goal Percentage",
         _ => $"Unknown({value})"
     };
 }

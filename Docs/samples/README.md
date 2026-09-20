@@ -137,11 +137,17 @@ Purpose:
 **File:** `07-interior-defense-problem.json`
 
 **Expected ProblemTags:**
-- InteriorDefenseProblem
+- HighOpponentEffectiveFieldGoalPercentage (Milestone 3 renamed this from
+  `InteriorDefenseProblem`, whose trigger - the opponent's raw field-goal
+  percentage with no minimum-attempts gate at all - was retired; this
+  sample's stats still satisfy the new, eFG%-based trigger, so the sample
+  itself is unchanged, only the expected tag name)
 
 Purpose:
-- Tests opponent field-goal percentage threshold
-- Validates paint defense detection
+- Tests the opponent's overall effective field-goal percentage threshold
+- Describes the opponent's overall shooting efficiency only - it does not
+  claim or validate any paint- or rim-specific defensive finding, since
+  `TeamStats` has no shot-location data to support one
 
 ---
 

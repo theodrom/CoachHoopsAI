@@ -13,8 +13,8 @@ Repository-specific instructions for AI-assisted development on CoachHoopsAI.
   M2B possession/cross-team metrics, M2C live estimated pace) is complete on
   `main`. Not yet tagged.
 - Verified 2026-09-20: `dotnet build CoachHoopsAI.sln` succeeds with no
-  errors; `dotnet test CoachHoopsAI.sln` passes 215 tests, 0 failed
-  (121 + 14 + 12 + 68 across the four test projects below). Treat this as a
+  errors; `dotnet test CoachHoopsAI.sln` passes 226 tests, 0 failed
+  (132 + 14 + 12 + 68 across the four test projects below). Treat this as a
   dated snapshot, not a permanent expected count - re-run rather than
   trusting this number as it ages.
 - Four test projects, no mocking framework, hand-written fakes only:
@@ -103,14 +103,15 @@ facts derived from raw stats, never rounded internally, never folded into
   original two-argument overload is unchanged and simply cannot produce
   `EstimatedPace` (no dummy timing is substituted to force a value).
 - Full formulas and null-semantics tables: `Docs/03-domain-and-rules.md`.
-- Five M3 rules (`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
+- Six M3 rules (`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
   `OffensiveEfficiencyProblem`, `TooManyThreePointAttempts`,
-  `LowDefensiveReboundPercentage`; see below) now read M2A/M2B's
-  `EffectiveFieldGoalPercentage`/`FreeThrowRate`/`OffensiveRating`/
-  `ThreePointAttemptRate`/`ThreePointPercentage`/`DefensiveReboundPercentage`
-  directly. Everything else in M2A/B/C is still not wired into diagnostics,
-  the LLM prompt, Admin, persistence, or API responses - the rest of that
-  integration is later M3 work.
+  `LowDefensiveReboundPercentage`, `HighOpponentEffectiveFieldGoalPercentage`;
+  see below) now read M2A/M2B's `EffectiveFieldGoalPercentage`/
+  `FreeThrowRate`/`OffensiveRating`/`ThreePointAttemptRate`/
+  `ThreePointPercentage`/`DefensiveReboundPercentage` directly. Everything
+  else in M2A/B/C is still not wired into diagnostics, the LLM prompt, Admin,
+  persistence, or API responses - the rest of that integration is later M3
+  work.
 
 ## Compatibility boundary - do not disturb without a milestone decision
 
@@ -125,19 +126,24 @@ facts derived from raw stats, never rounded internally, never folded into
   replaces what the rules engine consumes.
 - The M2 calculated-metrics layer (`TeamCalculatedMetrics`/
   `GameCalculatedMetrics`) exists alongside `LegacyPercentageBridge`, not in
-  place of it. `StatRulesEngine` still reads the bridge's remaining two ratios
-  for its original (M1) rules and for `OurShootingInefficiency`; five M3 rules
+  place of it. `StatRulesEngine` still reads the bridge's
+  `ThreePointPercentage` ratio for `OurShootingInefficiency`; six M3 rules
   (`LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
   `OffensiveEfficiencyProblem`, `TooManyThreePointAttempts`,
-  `LowDefensiveReboundPercentage`) additionally read
-  `GameCalculatedMetricsCalculator` directly, and `OpponentHotFromThree` (an
-  M1 rule, unrefined) had just its percentage side migrated the same way -
-  its trigger, thresholds, and meaning are unchanged, so it is a data-source
-  migration, not a sixth M3 slice. Those are the only rules migrated off the
-  bridge so far, not a signal to migrate the rest yet. `PerimeterDefenseProblem`,
-  the bridge's other former M1 consumer of `ThreePointPercentage`, is retired
-  (see below) rather than migrated - `StatRulesEngine` no longer evaluates it
-  at all, on the bridge or otherwise.
+  `LowDefensiveReboundPercentage`, `HighOpponentEffectiveFieldGoalPercentage`)
+  additionally read `GameCalculatedMetricsCalculator` directly, and
+  `OpponentHotFromThree` (an M1 rule, unrefined) had just its percentage side
+  migrated the same way - its trigger, thresholds, and meaning are unchanged,
+  so it is a data-source migration, not a seventh M3 slice. Those are the
+  only rules migrated off the bridge so far, not a signal to migrate the rest
+  yet. `PerimeterDefenseProblem` and `InteriorDefenseProblem`, the bridge's
+  other former M1 consumers (of `ThreePointPercentage` and
+  `FieldGoalPercentage` respectively), are both retired (see below) rather
+  than migrated - `StatRulesEngine` no longer evaluates either at all, on the
+  bridge or otherwise. (`LegacyPercentageBridge.FieldGoalPercentage` itself is
+  now only assigned to an unused local, `teamFieldGoalPct`, in
+  `StatRulesEngine` - a pre-existing dead assignment that predates this
+  retirement and was left as-is, out of scope for this change.)
 - `GameFormat`/`GameTiming` are captured and persisted but are **intentionally
   not yet consumed** by the rules engine, diagnostics, or the LLM prompt.
 
@@ -154,13 +160,16 @@ facts derived from raw stats, never rounded internally, never folded into
   volume gate instead of an absolute count), `LowDefensiveReboundPercentage`
   (replaces `DefensiveReboundProblem`'s trigger), `PerimeterDefenseProblem`
   retired with no replacement tag (same evidence as `OpponentHotFromThree`,
-  just a weaker, non-profile-driven trigger).
+  just a weaker, non-profile-driven trigger),
+  `HighOpponentEffectiveFieldGoalPercentage` (replaces `InteriorDefenseProblem`'s
+  trigger - unlike `PerimeterDefenseProblem`, this signal was not already
+  covered elsewhere, so it was replaced rather than retired outright).
 - **M4** - sessions/snapshots.
 - **M5** - LLM/Admin integration built on the above.
 
 ## Next steps (M3)
 
-Six slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
+Seven slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
 (Milestone 3)" section for full rationale:
 
 - `LowEffectiveFieldGoalPercentage` (`StatRulesEngine`) flags a low team
@@ -272,11 +281,42 @@ Six slices complete, all in `Docs/03-domain-and-rules.md`'s "Findings
   rule could reach that `OpponentHotFromThree` cannot was only reachable
   through the old rule's undersized sample gate, so `OpponentHotFromThree`
   was deliberately left unchanged rather than broadened to compensate.
-- `AnalysisHistoryService.RulesetVersion` was bumped five times across these
-  six slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
+- `HighOpponentEffectiveFieldGoalPercentage` **replaces** `InteriorDefenseProblem`'s
+  trigger (`opponentFieldGoalPct >= OpponentHighFieldGoalPct`, raw/unweighted
+  FG% across every shot type combined, with **no minimum-attempts gate at
+  all** - the weakest sample protection of any rule in `StatRulesEngine`).
+  `TeamStats` has no shot-location data to support an "interior defense"
+  finding specifically, so the causal name fails the same way as the other
+  retirements above. Unlike `PerimeterDefenseProblem`, though, the underlying
+  signal - the opponent's overall shooting efficiency - was **not** already
+  covered elsewhere (`OpponentHotFromThree` only reads three-point shooting),
+  so it was replaced rather than retired outright, mirroring
+  `LowDefensiveReboundPercentage`'s and `LowFreeThrowRate`'s pattern instead.
+  The new tag (appended at ordinal `16`) reads the opponent's
+  `EffectiveFieldGoalPercentage` (M2A via M2B - the same eFG% formula as
+  `LowEffectiveFieldGoalPercentage`, crediting three-pointers at 1.5x),
+  gated on a real `FieldGoalsAttempted` minimum. `RulesProfile.OpponentHighFieldGoalPct`
+  was removed; the new `OpponentHighEffectiveFieldGoalPct` field's five
+  per-level values (EasyBasket 0.56, Youth 0.55, Amateur 0.56, Pro 0.59,
+  Amateur_Development 0.55) are **newly chosen defaults for eFG%'s scale, not
+  a reuse of the old field's numbers**: eFG% runs systematically higher than
+  raw FG% for any team with real three-point volume, so keeping the old
+  raw-FG%-calibrated numbers unchanged would have made this trigger fire more
+  easily than the retired rule did for equivalent-quality shooting. Each new
+  value is a deliberate bump above the old field's corresponding value, sized
+  by how much three-point volume is realistic at that level - smallest at
+  EasyBasket (young players rarely shoot threes), largest at Pro (the
+  highest-volume, highest-value three-point shooting) - see
+  `Docs/03-domain-and-rules.md` for the full table and rationale.
+  `OpponentHighEffectiveFieldGoalPctAttemptsMin` is unchanged from its
+  original design and still mirrors `OurLowEffectiveFieldGoalPctAttemptsMin`'s
+  per-level attempts minimums.
+- `AnalysisHistoryService.RulesetVersion` was bumped six times across these
+  seven slices (`1.2` -> `1.3` for `LowFreeThrowRate`, `1.3` -> `1.4` for
   `OffensiveEfficiencyProblem`, `1.4` -> `1.5` for `TooManyThreePointAttempts`,
   `1.5` -> `1.6` for `LowDefensiveReboundPercentage`, `1.6` -> `1.7` for
-  `PerimeterDefenseProblem`'s retirement) to mark each change.
+  `PerimeterDefenseProblem`'s retirement, `1.7` -> `1.8` for
+  `InteriorDefenseProblem`'s retirement/replacement) to mark each change.
 
 `OpponentHotFromThree` was reviewed against the same criteria and found
 already sound: a measured opponent shooting result gated on a minimum
@@ -305,9 +345,10 @@ metrics (`TeamCalculatedMetrics`/`GameCalculatedMetrics`), not on the legacy
 Before adding new findings, review the existing `ProblemTag` set
 (`CoachHoopsAI.Domain.Enums`) against what the current box-score model can
 actually establish. Several remaining tags still claim causes the raw stats
-don't fully support - `RulesProfile` itself already labels some of the
-thresholds behind them as proxies (e.g. the fields behind
-`InteriorDefenseProblem` and `TransitionDefenseProblem`). In particular:
+don't fully support - `RulesProfile` itself already labeled the field behind
+the now-retired `InteriorDefenseProblem` a proxy before this review retired
+it; `TransitionDefenseProblem`'s trigger is a comparable candidate for a
+future slice, still unreviewed as of this writing. In particular:
 **`EstimatedPace` (M2C) measures tempo, but does not by itself establish
 `PaceControlProblem`** - turning a tempo number into a "pace is a problem"
 judgment needs a threshold/interpretation layer on top, which is M3 scope,

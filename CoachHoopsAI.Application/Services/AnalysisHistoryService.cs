@@ -31,7 +31,16 @@ namespace CoachHoopsAI.Application.Services
         // OffensiveEfficiencyProblem/TooManyThreePointAttempts triggers: this data
         // had no defensible connection to a defensive-positioning cause, so nothing
         // replaces it rather than reusing or duplicating the tag.
-        private const string RulesetVersion = "1.7";
+        // Bumped to 1.8: InteriorDefenseProblem is retired - its trigger (opponent's
+        // raw, unweighted FG% with no minimum-attempts gate at all) had no
+        // defensible connection to "interior" defense specifically and no sample
+        // protection whatsoever. Unlike 1.7's PerimeterDefenseProblem, this signal
+        // (opponent overall shooting efficiency) was not already covered elsewhere,
+        // so it is replaced - not just retired - by the appended
+        // HighOpponentEffectiveFieldGoalPercentage, reading the opponent's
+        // EffectiveFieldGoalPercentage (M2A via M2B) with a real FieldGoalsAttempted
+        // minimum, distinct from OpponentHotFromThree's three-point-specific signal.
+        private const string RulesetVersion = "1.8";
         private const string PromptVersion = "v2.0";
 
         public AnalysisHistoryService(IGameAnalysisService analysisService, IAnalysisRepository repo)

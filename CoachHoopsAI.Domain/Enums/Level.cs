@@ -74,7 +74,26 @@ namespace CoachHoopsAI.Domain.Enums
         // Docs/03-domain-and-rules.md for the full rationale.
         PerimeterDefenseProblem,
 
+        // Retired as of ruleset 1.8 - StatRulesEngine no longer triggers this tag.
+        // Its original trigger (opponent's raw, unweighted field-goal percentage
+        // across every shot type combined >= OpponentHighFieldGoalPct, with NO
+        // minimum field-goal-attempts gate at all - the weakest sample protection
+        // of any rule in StatRulesEngine, worse than PerimeterDefenseProblem's own
+        // trivial gate) read overall shooting efficiency, not any paint- or
+        // rim-specific data; TeamStats has no shot-location data (no PointsInPaint,
+        // rim-attempt count, or shot-distance breakdown) to support an "interior"
+        // defense finding specifically - the same limitation that retired
+        // LackOfPaintPressure and PerimeterDefenseProblem. Unlike those two,
+        // though, the underlying signal (the opponent's overall shooting
+        // efficiency) was not already covered elsewhere - OpponentHotFromThree only
+        // reads three-point shooting - so it was replaced rather than retired
+        // outright. See HighOpponentEffectiveFieldGoalPercentage below for the
+        // neutral replacement. Kept defined, never removed, so already-persisted
+        // analysis records containing this ordinal keep displaying correctly (see
+        // the ordinal-safety note below). See Docs/03-domain-and-rules.md for the
+        // full rationale.
         InteriorDefenseProblem,
+
         TransitionDefenseProblem,
         FoulsProblem,
 
@@ -115,7 +134,21 @@ namespace CoachHoopsAI.Domain.Enums
         // imply a specific cause such as poor positioning, boxing-out technique, or
         // lack of effort. TeamStats has no positioning/assignment data to support
         // attributing a cause.
-        LowDefensiveReboundPercentage
+        LowDefensiveReboundPercentage,
+
+        // Replaces InteriorDefenseProblem above. The opponent's overall effective
+        // field-goal percentage (EffectiveFieldGoalPercentage - FGM plus half of 3PM,
+        // divided by FGA, Milestone 2A via M2B) is high, with enough field-goal
+        // attempts for the percentage to be meaningful. This is a literal
+        // description of the opponent's overall shooting efficiency only - it does
+        // NOT claim or imply a specific defensive cause such as weak rim protection,
+        // blown rotations, poor closeouts, or defensive positioning; TeamStats has
+        // no shot-location, assignment, or possession-by-possession data to support
+        // attributing one. Distinct from OpponentHotFromThree: that tag reads the
+        // opponent's three-point shooting specifically, while this one reads their
+        // efficiency across their entire shot profile, weighted for shot value - a
+        // team can trigger one without the other.
+        HighOpponentEffectiveFieldGoalPercentage
     }
 
     public enum SuggestionCategory

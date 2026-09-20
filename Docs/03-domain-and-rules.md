@@ -760,6 +760,137 @@ the same underlying signal under a second name. Instead:
   already-persisted history can contain it, and that history is never
   re-sent to the LLM.
 
+### `InteriorDefenseProblem` (retired) and `HighOpponentEffectiveFieldGoalPercentage` (its replacement)
+
+**Old trigger:**
+
+```text
+opponentFieldGoalPct >= profile.OpponentHighFieldGoalPct
+```
+
+where `opponentFieldGoalPct` was `LegacyPercentageBridge.FieldGoalPercentage(opponent)`,
+the opponent's raw, unweighted field-goal percentage across every shot type
+combined (two-point and three-point makes and attempts, with no distinction
+between them). `RulesProfile` itself already labeled the field behind this
+trigger `// "Interior defense" proxy`, flagging it as an acknowledged
+approximation even before this audit.
+
+Auditing this against the data it reads and the sample it requires:
+
+- **No shot-location data at all.** `TeamStats` has no `PointsInPaint`,
+  rim-attempt count, or shot-distance breakdown, for either a final or a live
+  analysis - the same limitation that retired `LackOfPaintPressure` and
+  `PerimeterDefenseProblem`. Overall FG% cannot distinguish a team that
+  struggled to protect the rim from one that simply got outshot from the
+  perimeter; it blends every shot type into one number.
+- **No minimum-attempts gate at all** - not even the retired
+  `PerimeterDefenseProblem`'s weak, relative 5-attempt gate. A single made
+  field goal in the first possession of a live game (`1/1 = 1.0`) could
+  trigger this finding immediately. This is the weakest sample protection of
+  any rule audited in this document.
+- **Name asserts an unsupported cause.** "Interior defense problem" implies
+  rim protection, post defense, or help-side rotations broke down - none of
+  which a field-goal percentage, on its own, can establish. Applying the
+  same M3 evidence rule used throughout this section - a finding may state a
+  measured result, never assert an unsupported cause - this trigger fails.
+
+**Decision: retire the trigger, replace the tag.** Unlike
+`PerimeterDefenseProblem` (which read evidence already fully covered by
+`OpponentHotFromThree`), the signal behind `InteriorDefenseProblem` - the
+opponent's overall shooting efficiency across their whole shot profile - is
+**not** duplicated elsewhere: `OpponentHotFromThree` reads three-point
+shooting specifically, and nothing else in `StatRulesEngine` reads the
+opponent's overall efficiency. This mirrors our own
+`LowEffectiveFieldGoalPercentage` finding, just for the opponent's side and
+in the high direction. Because the underlying signal is useful and not
+redundant, it is replaced rather than retired outright:
+
+- `StatRulesEngine` no longer triggers `InteriorDefenseProblem` under any
+  input. The enum member is kept, never removed, so existing analysis
+  records that contain it (persisted as the raw ordinal `9`) keep resolving
+  to a real label instead of `Unknown(9)` in Admin.
+- `RulesProfile.OpponentHighFieldGoalPct`, the old trigger's only field, was
+  removed rather than left unused; the new fields below replace it.
+- `AnalysisHistoryService.RulesetVersion` was bumped (`1.7` -> `1.8`) to mark
+  that the active rule set changed under these records.
+
+**Replacement: `HighOpponentEffectiveFieldGoalPercentage`**, appended at the
+very end of the `ProblemTag` enum (ordinal `16`, after
+`LowDefensiveReboundPercentage`). New trigger:
+
+```text
+opponent.FieldGoalsAttempted >= profile.OpponentHighEffectiveFieldGoalPctAttemptsMin
+  AND
+gameMetrics.Opponent.EffectiveFieldGoalPercentage >= profile.OpponentHighEffectiveFieldGoalPct
+```
+
+`EffectiveFieldGoalPercentage` (M2A, exposed for the opponent's side via
+`GameCalculatedMetricsCalculator`/M2B) is `(FGM + 0.5 * 3PM) / FGA` - the same
+formula, and the same zero-attempts-means-`0.0` convention, as
+`LowEffectiveFieldGoalPercentage` above, crediting three-point makes at 1.5x
+a two-point make rather than treating every make identically. Two new
+`RulesProfile` fields back it:
+`OpponentHighEffectiveFieldGoalPct`/`OpponentHighEffectiveFieldGoalPctAttemptsMin`.
+
+**Threshold values are newly chosen, not reused.** eFG% is systematically
+higher than raw FG% for any team with real three-point volume - crediting a
+made three at 1.5x a made two inflates the percentage whenever threes are a
+meaningful share of the shot diet, and that inflation grows with how much of
+the diet is threes. Reusing the retired `OpponentHighFieldGoalPct` field's
+raw-FG%-calibrated numbers unchanged would therefore have made this trigger
+fire more easily than the old rule did for the same underlying shooting
+quality - a real behavior change disguised as a "no-op" carry-over, which is
+not the intent. Instead, each level's threshold was set a deliberate amount
+above the old field's corresponding value, sized by how much three-point
+volume is realistic at that level - the more of the shot diet that
+realistically comes from three, the larger the eFG%/FG% gap, and the larger
+the adjustment needed to preserve the same real strictness:
+
+| Level | Old `OpponentHighFieldGoalPct` (retired) | New `OpponentHighEffectiveFieldGoalPct` | Rationale |
+| --- | --- | --- | --- |
+| EasyBasket | 0.55 | **0.56** | Young players rarely attempt threes at all, so eFG% and raw FG% barely diverge here - the smallest adjustment of the five. |
+| Youth | 0.53 | **0.55** | Three-point shooting is emerging but still a minor share of the diet - a modest adjustment. |
+| Amateur | 0.52 | **0.56** | The default/baseline level: real, meaningful three-point volume - a moderate adjustment. |
+| Amateur_Development | 0.53 | **0.55** | Mirrors Youth's value, matching the existing pattern where this profile tracks Youth's leniency elsewhere (e.g. `OurLowEffectiveFieldGoalPct`). |
+| Pro | 0.54 | **0.59** | The highest-volume, highest-value three-point shooting of any level - the largest adjustment. |
+
+These are current project defaults, not universal basketball facts, and are
+free to be retuned later with more data - but they are a deliberate choice
+for the eFG% scale, not an artifact of the old raw-FG% field. The
+attempts-minimum values (unchanged: 10/15/20/25/15 by level) mirror
+`OurLowEffectiveFieldGoalPctAttemptsMin`'s per-level values, since both gate
+the same `FieldGoalsAttempted`-based sample. Unlike the retired trigger, a
+minimum sample is now required before any percentage is trusted.
+
+**Distinct from `OpponentHotFromThree`.** The two rules read different
+evidence and can each fire independently of the other: `OpponentHotFromThree`
+reads the opponent's three-point shooting specifically
+(`ThreePointPercentage`, gated on `ThreePointsAttempted`);
+`HighOpponentEffectiveFieldGoalPercentage` reads their efficiency across
+their **entire** shot profile (`EffectiveFieldGoalPercentage`, gated on
+`FieldGoalsAttempted`), weighted for shot value. A team can be merely average
+from three while still shooting efficiently overall (strong two-point
+shooting), or vice versa (a hot three-point night that doesn't move their
+overall efficiency much) - either rule can trigger without the other.
+
+**Coach-facing framing.** The finding describes the opponent's measured
+overall shooting efficiency only - it does not identify a defensive cause
+(rim protection, close-outs, rotations, positioning, effort); `TeamStats` has
+no data to support attributing one. The bare enum name
+(`HighOpponentEffectiveFieldGoalPercentage`) does not overclaim on its own -
+"high effective field-goal percentage" is already a literal description, not
+an implicit verdict - so no Admin-label or LLM-prompt substitution was needed
+for it, matching `LowDefensiveReboundPercentage`'s precedent.
+`ProblemTagDto.MapTag` uses the same literal Title Case as every other
+non-substituted M3 tag, and the LLM prompt sends its bare enum name; the
+generic internal-identifier leak filter
+(`OpenAiSuggestionClientHttp.ExposesInternalIdentifier`) requires no
+per-tag change, since it already checks every tag in the request's
+`ProblemTags` collection generically. The retired `InteriorDefenseProblem`
+needs no such substitution either, since `StatRulesEngine` never emits it for
+new analyses - it only appears in already-persisted history, which is never
+re-sent to the LLM.
+
 ## Philosophy
 
 Rules represent �coach-agreeable� heuristics, not absolute truth.

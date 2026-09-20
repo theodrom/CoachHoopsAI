@@ -605,18 +605,239 @@ public class StatRulesEngineTests
         Assert.DoesNotContain(ProblemTag.LowFreeThrowRate, tags);
     }
 
-    [Theory]
-    [InlineData(51, false)] // FG 51/100 = 0.51, just below OpponentHighFieldGoalPct (0.52)
-    [InlineData(52, true)]  // FG 52/100 = 0.52, at threshold (>=)
-    [InlineData(55, true)]  // FG 55/100 = 0.55, above threshold
-    public void Evaluate_OpponentFieldGoalPct_Boundary(int made, bool expectTag)
+    // Milestone 3: InteriorDefenseProblem's old trigger (opponent's raw, unweighted
+    // FG% >= OpponentHighFieldGoalPct, with NO minimum-attempts gate at all) is
+    // retired - it read overall shooting efficiency across every shot type
+    // combined, not any paint- or rim-specific data, and TeamStats has no
+    // shot-location data to support an "interior defense" finding specifically.
+    // HighOpponentEffectiveFieldGoalPercentage replaces it, reading
+    // gameMetrics.Opponent.EffectiveFieldGoalPercentage (M2A via M2B) - the same
+    // eFG% formula used for LowEffectiveFieldGoalPercentage above - gated on a real
+    // FieldGoalsAttempted minimum. The five per-level threshold values are newly
+    // chosen defaults for eFG%'s scale, deliberately higher than the retired
+    // trigger's raw-FG%-based numbers (see RulesProfile.cs and
+    // Docs/03-domain-and-rules.md for the full per-level rationale). Default
+    // profile (Amateur-tier): OpponentHighEffectiveFieldGoalPct = 0.56,
+    // OpponentHighEffectiveFieldGoalPctAttemptsMin = 20.
+
+    [Fact]
+    public void Evaluate_OpponentFieldGoalPct_NoLongerTriggersInteriorDefenseProblem()
     {
+        // The exact scenario that used to trigger the retired rule: FG 55/100 =
+        // 0.55, well above the old OpponentHighFieldGoalPct (0.52), with no attempts
+        // gate to suppress it.
         var team = Healthy();
-        var opponent = HealthyOpponent() with { FieldGoalsMade = made, FieldGoalsAttempted = 100 };
+        var opponent = HealthyOpponent() with { FieldGoalsMade = 55, FieldGoalsAttempted = 100 };
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
-        Assert.Equal(expectTag, tags.Contains(ProblemTag.InteriorDefenseProblem));
+        Assert.DoesNotContain(ProblemTag.InteriorDefenseProblem, tags);
+    }
+
+    [Fact]
+    public void Evaluate_HighOpponentShooting_NeverTriggersRetiredInteriorDefenseProblem()
+    {
+        // An extreme opponent shooting night (FG 95/100 = 0.95) on a large sample -
+        // exactly the kind of input the old rule was most likely to flag. Confirms
+        // the retired tag never emits under any input now, however dramatic.
+        var team = Healthy();
+        var opponent = HealthyOpponent() with { FieldGoalsMade = 95, FieldGoalsAttempted = 100 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.InteriorDefenseProblem, tags);
+    }
+
+    [Theory]
+    [InlineData(55, false)] // eFG% 55/100 = 0.55, just below the 0.56 threshold
+    [InlineData(56, true)]  // eFG% 56/100 = 0.56, at threshold (>=, boundary)
+    [InlineData(59, true)]  // eFG% 59/100 = 0.59, above threshold
+    public void Evaluate_OpponentEffectiveFieldGoalPct_Boundary(int made, bool expectTag)
+    {
+        // 3PM = 0 keeps eFG% numerically equal to FG% here, isolating the threshold
+        // boundary from the three-point weighting (covered separately below).
+        var team = Healthy();
+        var opponent = HealthyOpponent() with
+        {
+            FieldGoalsMade = made,
+            FieldGoalsAttempted = 100,
+            ThreePointsMade = 0,
+            ThreePointsAttempted = 0
+        };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.HighOpponentEffectiveFieldGoalPercentage));
+    }
+
+    [Theory]
+    [InlineData(19, false)] // FieldGoalsAttempted just below OpponentHighEffectiveFieldGoalPctAttemptsMin (20)
+    [InlineData(20, true)]  // at the minimum (boundary)
+    [InlineData(25, true)]  // above the minimum
+    public void Evaluate_OpponentEffectiveFieldGoalPct_InsufficientAttempts_DoesNotTrigger(int fieldGoalsAttempted, bool expectTag)
+    {
+        // eFG% stays comfortably above the 0.56 threshold (~0.58-0.60) at every
+        // attempt count below - only the sample size changes, proving the
+        // minimum-attempts gate (not the percentage itself) is what suppresses the
+        // tag below the cutoff. The old, retired rule had no such gate at all.
+        var fieldGoalsMade = (int)(fieldGoalsAttempted * 0.6);
+        var team = Healthy();
+        var opponent = HealthyOpponent() with
+        {
+            FieldGoalsMade = fieldGoalsMade,
+            FieldGoalsAttempted = fieldGoalsAttempted,
+            ThreePointsMade = 0,
+            ThreePointsAttempted = 0
+        };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.HighOpponentEffectiveFieldGoalPercentage));
+    }
+
+    [Fact]
+    public void Evaluate_OpponentEffectiveFieldGoalPct_ZeroAttempts_DoesNotTrigger()
+    {
+        // FieldGoalsAttempted == 0 drives EffectiveFieldGoalPercentage to 0.0 (M2A's
+        // zero-denominator convention - never null for this field), which alone is
+        // below the threshold; the minimum-attempts gate excludes it independently
+        // either way, so an opponent that hasn't shot yet can never read as
+        // efficient.
+        var team = Healthy();
+        var opponent = HealthyOpponent() with { FieldGoalsMade = 0, FieldGoalsAttempted = 0, ThreePointsMade = 0, ThreePointsAttempted = 0 };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.HighOpponentEffectiveFieldGoalPercentage, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OpponentEffectiveFieldGoalPct_ThreePointValue_IntentionallyChangesClassificationVsRawFieldGoalPct()
+    {
+        // FG 45/100 = 0.45 - below BOTH the new OpponentHighEffectiveFieldGoalPct
+        // threshold (0.56) AND the old, retired InteriorDefenseProblem threshold
+        // (OpponentHighFieldGoalPct, 0.52 at this level) - so a raw-FG%-based
+        // judgment, whether old or new, would NOT flag this shooting performance.
+        // But two-thirds of those makes are threes: eFG% = (45 + 0.5*30) / 100 =
+        // 0.60, above the new threshold. This is the deliberate, intended effect of
+        // choosing eFG% (which credits made three-pointers at 1.5x a made
+        // two-pointer) over raw FG% for this rule: a team that scored the same 45
+        // points' worth of field goals but drew unusually large value from three
+        // (rather than spreading those makes across twos) is judged more
+        // efficient, and can now cross the threshold, precisely because eFG%
+        // accounts for that extra value and raw FG% cannot. It is not an
+        // incidental side effect of the migration - it is the reason eFG% was
+        // chosen as the metric in the first place (see
+        // LowEffectiveFieldGoalPercentage's own three-point-crediting test above
+        // for the mirror case on our own side).
+        var team = Healthy();
+        var opponent = HealthyOpponent() with
+        {
+            FieldGoalsMade = 45,
+            FieldGoalsAttempted = 100,
+            ThreePointsMade = 30,
+            ThreePointsAttempted = 60
+        };
+
+        var metrics = GameCalculatedMetricsCalculator.Calculate(team, opponent).Opponent;
+        Assert.Equal(0.45, metrics.FieldGoalPercentage, precision: 10);
+        Assert.Equal(0.60, metrics.EffectiveFieldGoalPercentage, precision: 10);
+        Assert.True(metrics.FieldGoalPercentage < _profile.OpponentHighEffectiveFieldGoalPct);
+        Assert.True(metrics.EffectiveFieldGoalPercentage >= _profile.OpponentHighEffectiveFieldGoalPct);
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.HighOpponentEffectiveFieldGoalPercentage, tags);
+    }
+
+    [Fact]
+    public void Evaluate_OpponentEffectiveFieldGoalPct_ReadsOpponentStats_NotOurStats()
+    {
+        // Our own shooting has no bearing on this finding: a red-hot team (eFG%
+        // 0.75) does not trigger it while the opponent shoots poorly, and a cold
+        // team (eFG% 0.20) does not suppress it while the opponent shoots well.
+        var hotTeam = Healthy() with { FieldGoalsMade = 45, FieldGoalsAttempted = 60, ThreePointsMade = 0, ThreePointsAttempted = 0 }; // 0.75
+        var coldOpponent = HealthyOpponent() with { FieldGoalsMade = 20, FieldGoalsAttempted = 100, ThreePointsMade = 0, ThreePointsAttempted = 0 }; // 0.20
+        var tagsWithHotTeamColdOpponent = _engine.Evaluate(hotTeam, coldOpponent, _profile);
+        Assert.DoesNotContain(ProblemTag.HighOpponentEffectiveFieldGoalPercentage, tagsWithHotTeamColdOpponent);
+
+        var coldTeam = Healthy() with { FieldGoalsMade = 12, FieldGoalsAttempted = 60, ThreePointsMade = 0, ThreePointsAttempted = 0 }; // 0.20
+        var hotOpponent = HealthyOpponent() with { FieldGoalsMade = 60, FieldGoalsAttempted = 100, ThreePointsMade = 0, ThreePointsAttempted = 0 }; // 0.60
+        var tagsWithColdTeamHotOpponent = _engine.Evaluate(coldTeam, hotOpponent, _profile);
+        Assert.Contains(ProblemTag.HighOpponentEffectiveFieldGoalPercentage, tagsWithColdTeamHotOpponent);
+    }
+
+    [Fact]
+    public void Evaluate_OpponentEffectiveFieldGoalPct_ReadsThresholdsFromProfile_NotHardcoded()
+    {
+        // Identical opponent shooting (eFG% = 18/40 = 0.45) judged against two
+        // profiles that differ only in OpponentHighEffectiveFieldGoalPct - proves
+        // the threshold is profile-driven per level, not a hardcoded constant
+        // (unlike the retired InteriorDefenseProblem's old trigger).
+        var team = Healthy();
+        var opponent = HealthyOpponent() with
+        {
+            FieldGoalsMade = 18,
+            FieldGoalsAttempted = 40,
+            ThreePointsMade = 0,
+            ThreePointsAttempted = 0
+        };
+
+        var lenientProfile = new RulesProfile { OpponentHighEffectiveFieldGoalPct = 0.48, OpponentHighEffectiveFieldGoalPctAttemptsMin = 10 };
+        var strictProfile = new RulesProfile { OpponentHighEffectiveFieldGoalPct = 0.42, OpponentHighEffectiveFieldGoalPctAttemptsMin = 10 };
+
+        var lenientTags = _engine.Evaluate(team, opponent, lenientProfile);
+        var strictTags = _engine.Evaluate(team, opponent, strictProfile);
+
+        Assert.DoesNotContain(ProblemTag.HighOpponentEffectiveFieldGoalPercentage, lenientTags);
+        Assert.Contains(ProblemTag.HighOpponentEffectiveFieldGoalPercentage, strictTags);
+    }
+
+    [Fact]
+    public void Evaluate_OpponentEffectiveFieldGoalPct_DistinctFromOpponentHotFromThree_NoDuplicates()
+    {
+        // Opponent shoots efficiently overall (eFG% 0.60) but is NOT hot from three
+        // specifically (3P% 0.30, below OpponentHotThreePct 0.38) - proves a team can
+        // trip HighOpponentEffectiveFieldGoalPercentage without OpponentHotFromThree,
+        // because the two rules read different evidence (whole shot profile vs.
+        // three-point shooting specifically).
+        var team = Healthy();
+        var opponent = HealthyOpponent() with
+        {
+            FieldGoalsMade = 60,
+            FieldGoalsAttempted = 100,
+            ThreePointsMade = 6,
+            ThreePointsAttempted = 20 // 3P% 0.30 - below the 0.38 threshold
+        };
+        // eFG% = (60 + 0.5*6) / 100 = 0.63, above the 0.56 threshold.
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.HighOpponentEffectiveFieldGoalPercentage, tags);
+        Assert.DoesNotContain(ProblemTag.OpponentHotFromThree, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
+    }
+
+    [Fact]
+    public void Evaluate_OpponentEffectiveFieldGoalPct_CoOccursWithOpponentHotFromThree_WithoutDuplication()
+    {
+        // Opponent shoots efficiently overall AND is hot from three specifically -
+        // both independent findings fire together without duplication.
+        var team = Healthy();
+        var opponent = HealthyOpponent() with
+        {
+            FieldGoalsMade = 60,
+            FieldGoalsAttempted = 100,
+            ThreePointsMade = 20,
+            ThreePointsAttempted = 40 // 3P% 0.50, above the 0.38 threshold, 40 >= 20 attempts min
+        };
+        // eFG% = (60 + 0.5*20) / 100 = 0.70, above the 0.56 threshold.
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.HighOpponentEffectiveFieldGoalPercentage, tags);
+        Assert.Contains(ProblemTag.OpponentHotFromThree, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
     }
 
     [Fact]
@@ -839,15 +1060,19 @@ public class StatRulesEngineTests
     public void ProblemTag_DefenseSectionOrdinals_RemainStableAfterRetirement()
     {
         // Locks the persistence-sensitive ordinals around PerimeterDefenseProblem
-        // (retired ruleset 1.7) - AnalysisRecord.ProblemTagsJson stores these as raw
-        // ints, so retiring the tag must never shift its own ordinal or its
-        // neighbors'. Includes the two earlier retirements (ruleset 1.3/1.6) for the
-        // same reason.
+        // (retired ruleset 1.7) and InteriorDefenseProblem (retired ruleset 1.8) -
+        // AnalysisRecord.ProblemTagsJson stores these as raw ints, so retiring a tag
+        // must never shift its own ordinal or its neighbors'. Includes the two
+        // earlier retirements (ruleset 1.3/1.6) for the same reason, plus the newly
+        // appended replacement tag's ordinal.
         Assert.Equal(5, (int)ProblemTag.LackOfPaintPressure);
         Assert.Equal(6, (int)ProblemTag.DefensiveReboundProblem);
         Assert.Equal(7, (int)ProblemTag.OpponentHotFromThree);
         Assert.Equal(8, (int)ProblemTag.PerimeterDefenseProblem);
         Assert.Equal(9, (int)ProblemTag.InteriorDefenseProblem);
+        Assert.Equal(10, (int)ProblemTag.TransitionDefenseProblem);
+        Assert.Equal(15, (int)ProblemTag.LowDefensiveReboundPercentage);
+        Assert.Equal(16, (int)ProblemTag.HighOpponentEffectiveFieldGoalPercentage);
     }
 
     [Fact]
@@ -1030,10 +1255,11 @@ public class StatRulesEngineTests
     public void Evaluate_MultipleProblemsAtOnce_ReturnsAllTriggeredTagsWithoutDuplicates()
     {
         // Team commits far more turnovers AND has a low share of defensive-rebound
-        // opportunities; opponent also shoots well from the field. Three independent
-        // rules should fire.
+        // opportunities; opponent also shoots well from the field overall. Three
+        // independent rules should fire.
         var team = Healthy() with { Points = 60, Turnovers = 22, OffensiveRebounds = 4, DefensiveRebounds = 20 };
-        // FG 55/100 = 0.55. DefensiveReboundPercentage = 20/(20+12) = 0.625 (<= 0.65).
+        // eFG% = (55 + 0.5*6) / 100 = 0.58 (>= 0.56). DefensiveReboundPercentage =
+        // 20/(20+12) = 0.625 (<= 0.65).
         var opponent = HealthyOpponent() with
         {
             Points = 70,
@@ -1045,7 +1271,7 @@ public class StatRulesEngineTests
         var tags = _engine.Evaluate(team, opponent, _profile);
 
         Assert.Contains(ProblemTag.TurnoverProblem, tags);
-        Assert.Contains(ProblemTag.InteriorDefenseProblem, tags);
+        Assert.Contains(ProblemTag.HighOpponentEffectiveFieldGoalPercentage, tags);
         Assert.Contains(ProblemTag.LowDefensiveReboundPercentage, tags);
         Assert.Equal(tags.Distinct().Count(), tags.Count);
     }
