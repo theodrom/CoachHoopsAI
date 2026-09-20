@@ -42,7 +42,17 @@ namespace CoachHoopsAI.Domain.Enums
         // Docs/03-domain-and-rules.md for the full rationale.
         LackOfPaintPressure,
 
-        // Rebounding
+        // Retired as of ruleset 1.6 - StatRulesEngine no longer triggers this tag.
+        // Its original trigger (opponent.OffensiveRebounds - team.OffensiveRebounds
+        // >= threshold) compared two OFFENSIVE rebound counts across teams; it never
+        // read team.DefensiveRebounds at all, so it had no defensible connection to
+        // our own defensive rebounding - a team with genuinely poor defensive
+        // rebounding could avoid the flag simply by also offensive-rebounding well
+        // (which lowers the differential but says nothing about defense), and vice
+        // versa. Kept defined, never removed, so already-persisted analysis records
+        // containing this ordinal keep displaying correctly (see the ordinal-safety
+        // note below). See LowDefensiveReboundPercentage for the replacement finding
+        // and Docs/03-domain-and-rules.md for the full rationale.
         DefensiveReboundProblem,
 
         // Defense
@@ -79,7 +89,17 @@ namespace CoachHoopsAI.Domain.Enums
         // fouling, shooting fouls beyond the paint), and real paint attacks often
         // draw no whistle at all, so this rate cannot stand in for paint activity;
         // TeamStats also has no shot-location data to support that claim directly.
-        LowFreeThrowRate
+        LowFreeThrowRate,
+
+        // Replaces DefensiveReboundProblem above. The team secured a low share of
+        // available defensive-rebound opportunities - our own defensive rebounds
+        // plus the opponent's offensive rebounds (DefensiveReboundPercentage,
+        // Milestone 2B) - with enough opportunities for the share to be meaningful.
+        // This is a literal description of that share only - it does NOT claim or
+        // imply a specific cause such as poor positioning, boxing-out technique, or
+        // lack of effort. TeamStats has no positioning/assignment data to support
+        // attributing a cause.
+        LowDefensiveReboundPercentage
     }
 
     public enum SuggestionCategory

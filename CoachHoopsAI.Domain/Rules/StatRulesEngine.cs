@@ -111,8 +111,28 @@ namespace CoachHoopsAI.Domain.Rules
 
 
             // Rebounding
-            if (opponent.OffensiveRebounds - team.OffensiveRebounds >= profile.OpponentOffensiveReboundDiffToFlag)
-                tags.Add(ProblemTag.DefensiveReboundProblem);
+            // Milestone 3 refinement: previously compared opponent.OffensiveRebounds
+            // to team.OffensiveRebounds - two OFFENSIVE rebound counts, neither of
+            // which is our defensive rebounding. team.DefensiveRebounds was never
+            // read at all, so a team with a genuine defensive-rebounding problem
+            // could dodge the old flag simply by also offensive-rebounding well
+            // (which shrinks the differential but says nothing about defense).
+            // Retired below (DefensiveReboundProblem no longer triggers) rather than
+            // reused, since the old data had no defensible connection to what the
+            // tag claims - contrast OffensiveEfficiencyProblem/TooManyThreePointAttempts
+            // above, whose old triggers at least read the right data, just imprecisely.
+            // LowDefensiveReboundPercentage replaces it, reading
+            // DefensiveReboundPercentage (TeamDREB / (TeamDREB + OpponentOREB), M2B)
+            // directly: the share of available defensive-rebound opportunities - our
+            // own defensive rebounds plus the opponent's offensive rebounds - that we
+            // actually secured. Opportunities-min gate mirrors OffensiveEfficiencyProblem's
+            // PossessionsMin reasoning, though this denominator (a sum of two
+            // non-negative counts) can only be non-positive when both terms are
+            // exactly zero, unlike EstimatedPossessions' subtraction.
+            if (team.DefensiveRebounds + opponent.OffensiveRebounds >= profile.OurLowDefensiveReboundPctOpportunitiesMin
+                && teamMetrics.DefensiveReboundPercentage.HasValue
+                && teamMetrics.DefensiveReboundPercentage.Value <= profile.OurLowDefensiveReboundPct)
+                tags.Add(ProblemTag.LowDefensiveReboundPercentage);
 
 
             // Game Control

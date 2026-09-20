@@ -78,10 +78,15 @@ Purpose:
 **File:** `03-defensive-rebounding-problem.json`
 
 **Expected ProblemTags:**
-- DefensiveReboundProblem
+- LowDefensiveReboundPercentage (Milestone 3 renamed this from
+  `DefensiveReboundProblem`, whose trigger - an offensive-rebound
+  differential that never read `team.DefensiveRebounds` - was retired; this
+  sample's stats still satisfy the new, calculated-metric-based trigger, so
+  the sample itself is unchanged, only the expected tag name)
 
 Purpose:
-- Tests offensive rebound differential
+- Tests our share of available defensive-rebound opportunities (our
+  defensive rebounds plus the opponent's offensive rebounds)
 - Ensures rebounding logic is isolated
 
 ---

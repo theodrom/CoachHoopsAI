@@ -19,7 +19,7 @@ public sealed class ProblemTagDto
         // remains the stable identifier for historical records.
         4 => "High Three Point Share With Low Three Point Percentage",
         5 => "Lack Of Paint Pressure", // retired ruleset 1.3 onward - StatRulesEngine no longer triggers this; kept for historical records
-        6 => "Defensive Rebound Problem",
+        6 => "Defensive Rebound Problem", // retired ruleset 1.6 onward - StatRulesEngine no longer triggers this; kept for historical records
         7 => "Opponent Hot From Three",
         8 => "Perimeter Defense Problem",
         9 => "Interior Defense Problem",
@@ -28,6 +28,7 @@ public sealed class ProblemTagDto
         12 => "Pace Control Problem",
         13 => "Low Effective Field Goal Percentage",
         14 => "Low Free Throw Rate",
+        15 => "Low Defensive Rebound Percentage",
         _ => $"Unknown({value})"
     };
 }

@@ -669,15 +669,141 @@ public class StatRulesEngineTests
         Assert.Equal(expectTag, tags.Contains(ProblemTag.FoulsProblem));
     }
 
+    // Milestone 3: DefensiveReboundProblem's old trigger (opponent.OffensiveRebounds
+    // minus team.OffensiveRebounds >= threshold) is retired - it compared two
+    // OFFENSIVE rebound counts and never read team.DefensiveRebounds at all, so it
+    // had no defensible connection to our defensive rebounding.
+    // LowDefensiveReboundPercentage (DefensiveReboundPercentage = TeamDREB /
+    // (TeamDREB + OpponentOREB), M2B) replaces it. Default profile (Amateur-tier):
+    // OurLowDefensiveReboundPct = 0.65, OurLowDefensiveReboundPctOpportunitiesMin = 20.
+
     [Fact]
-    public void Evaluate_OpponentOutreboundsOnOffensiveGlass_TriggersDefensiveReboundProblem()
+    public void Evaluate_OpponentOutreboundsUsOnOffensiveGlass_NoLongerTriggersDefensiveReboundProblem()
     {
+        // The exact scenario that used to trigger the retired rule: opponent's
+        // OffensiveRebounds exceeds our own OffensiveRebounds by >= 5. Neither of
+        // those two OFFENSIVE-rebound counts is read by StatRulesEngine anymore for
+        // this finding.
         var team = Healthy() with { OffensiveRebounds = 6 };
         var opponent = HealthyOpponent() with { OffensiveRebounds = 12 }; // diff = 6 >= 5
 
         var tags = _engine.Evaluate(team, opponent, _profile);
 
-        Assert.Contains(ProblemTag.DefensiveReboundProblem, tags);
+        Assert.DoesNotContain(ProblemTag.DefensiveReboundProblem, tags);
+    }
+
+    [Theory]
+    [InlineData(66, false)] // pct = 66/100 = 0.66, just above the 0.65 threshold
+    [InlineData(65, true)]  // pct = 65/100 = 0.65, at threshold (<=, boundary)
+    [InlineData(60, true)]  // pct = 60/100 = 0.60, below threshold
+    public void Evaluate_DefensiveReboundPercentage_Boundary(int teamDefensiveRebounds, bool expectTag)
+    {
+        // TeamDREB + OpponentOREB fixed at 100 throughout, so only the split
+        // (and therefore the percentage) varies.
+        var team = Healthy() with { DefensiveRebounds = teamDefensiveRebounds };
+        var opponent = HealthyOpponent() with { OffensiveRebounds = 100 - teamDefensiveRebounds };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.LowDefensiveReboundPercentage));
+    }
+
+    [Theory]
+    [InlineData(19, false)] // Opportunities (TeamDREB + OpponentOREB) just below OurLowDefensiveReboundPctOpportunitiesMin (20)
+    [InlineData(20, true)]  // at the minimum (boundary)
+    [InlineData(25, true)]  // above the minimum
+    public void Evaluate_DefensiveReboundPercentage_InsufficientOpportunities_DoesNotTrigger(int totalOpportunities, bool expectTag)
+    {
+        // The split stays at roughly 30% our DREB / 70% opponent OREB throughout
+        // (pct ~0.30, comfortably below the 0.65 threshold) - only the total sample
+        // size changes, proving the minimum-opportunities gate (not the percentage
+        // itself) is what suppresses the tag below the cutoff. A handful of
+        // rebounds early in a live game can't trigger this from a trivial sample.
+        var teamDefensiveRebounds = (int)(totalOpportunities * 0.3);
+        var team = Healthy() with { DefensiveRebounds = teamDefensiveRebounds };
+        var opponent = HealthyOpponent() with { OffensiveRebounds = totalOpportunities - teamDefensiveRebounds };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Equal(expectTag, tags.Contains(ProblemTag.LowDefensiveReboundPercentage));
+    }
+
+    [Fact]
+    public void Evaluate_DefensiveReboundPercentage_ZeroOpportunities_PercentageUnavailable_DoesNotTrigger()
+    {
+        // TeamDREB = OpponentOREB = 0 drives DefensiveReboundPercentage's
+        // denominator to exactly zero, so the percentage is null (M2B's
+        // zero-denominator convention). The gate must not emit the finding when
+        // the percentage itself is unavailable.
+        var team = Healthy() with { DefensiveRebounds = 0 };
+        var opponent = HealthyOpponent() with { OffensiveRebounds = 0 };
+
+        var metrics = GameCalculatedMetricsCalculator.Calculate(team, opponent).Team;
+        Assert.Null(metrics.DefensiveReboundPercentage);
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.LowDefensiveReboundPercentage, tags);
+    }
+
+    [Fact]
+    public void Evaluate_DefensiveReboundPercentage_SameTeamCount_DifferentOpponentCount_ProducesDifferentResult()
+    {
+        // Identical team.DefensiveRebounds (20) - only the opponent's
+        // OffensiveRebounds differs, changing the size of the opportunity pool
+        // (and therefore the percentage) without changing our own raw count at all.
+        var lowOpponentOreb = Healthy() with { DefensiveRebounds = 20 };
+        var lowOpponentOrebOpponent = HealthyOpponent() with { OffensiveRebounds = 10 }; // pct = 20/30 = 0.667
+
+        var highOpponentOreb = Healthy() with { DefensiveRebounds = 20 };
+        var highOpponentOrebOpponent = HealthyOpponent() with { OffensiveRebounds = 30 }; // pct = 20/50 = 0.40
+
+        var lowOpponentOrebTags = _engine.Evaluate(lowOpponentOreb, lowOpponentOrebOpponent, _profile);
+        var highOpponentOrebTags = _engine.Evaluate(highOpponentOreb, highOpponentOrebOpponent, _profile);
+
+        Assert.DoesNotContain(ProblemTag.LowDefensiveReboundPercentage, lowOpponentOrebTags);
+        Assert.Contains(ProblemTag.LowDefensiveReboundPercentage, highOpponentOrebTags);
+    }
+
+    [Fact]
+    public void Evaluate_DefensiveReboundPercentage_ReadsThresholdsFromProfile_NotHardcoded()
+    {
+        // Identical rebounding (pct = 26/40 = 0.65) judged against two profiles
+        // that differ only in OurLowDefensiveReboundPct - proves the threshold is
+        // profile-driven per level, not a hardcoded constant.
+        var team = Healthy() with { DefensiveRebounds = 26 };
+        var opponent = HealthyOpponent() with { OffensiveRebounds = 14 };
+
+        var lenientProfile = new RulesProfile { OurLowDefensiveReboundPct = 0.60, OurLowDefensiveReboundPctOpportunitiesMin = 10 };
+        var strictProfile = new RulesProfile { OurLowDefensiveReboundPct = 0.68, OurLowDefensiveReboundPctOpportunitiesMin = 10 };
+
+        var lenientTags = _engine.Evaluate(team, opponent, lenientProfile);
+        var strictTags = _engine.Evaluate(team, opponent, strictProfile);
+
+        Assert.DoesNotContain(ProblemTag.LowDefensiveReboundPercentage, lenientTags);
+        Assert.Contains(ProblemTag.LowDefensiveReboundPercentage, strictTags);
+    }
+
+    [Fact]
+    public void Evaluate_DefensiveReboundPercentage_CoOccursWithUnrelatedTags_WithoutDuplicationOrInterference()
+    {
+        // Low defensive-rebound percentage alongside a separately-triggered
+        // TurnoverProblem; FoulsProblem stays absent since nothing here drives a
+        // foul differential. Confirms the new rule composes cleanly with
+        // pre-existing, unrelated findings.
+        var opponent = HealthyOpponent() with { OffensiveRebounds = 20 };
+        var team = Healthy() with
+        {
+            DefensiveRebounds = 10, // pct = 10/30 = 0.333, well below 0.65
+            Turnovers = opponent.Turnovers + 5
+        };
+
+        var tags = _engine.Evaluate(team, opponent, _profile);
+
+        Assert.Contains(ProblemTag.LowDefensiveReboundPercentage, tags);
+        Assert.Contains(ProblemTag.TurnoverProblem, tags);
+        Assert.DoesNotContain(ProblemTag.FoulsProblem, tags);
+        Assert.Equal(tags.Distinct().Count(), tags.Count);
     }
 
     [Theory]
@@ -697,10 +823,11 @@ public class StatRulesEngineTests
     [Fact]
     public void Evaluate_MultipleProblemsAtOnce_ReturnsAllTriggeredTagsWithoutDuplicates()
     {
-        // Team commits far more turnovers AND has a big offensive-rebound deficit;
-        // opponent also shoots well from the field. Three independent rules should fire.
-        var team = Healthy() with { Points = 60, Turnovers = 22, OffensiveRebounds = 4 };
-        // FG 55/100 = 0.55.
+        // Team commits far more turnovers AND has a low share of defensive-rebound
+        // opportunities; opponent also shoots well from the field. Three independent
+        // rules should fire.
+        var team = Healthy() with { Points = 60, Turnovers = 22, OffensiveRebounds = 4, DefensiveRebounds = 20 };
+        // FG 55/100 = 0.55. DefensiveReboundPercentage = 20/(20+12) = 0.625 (<= 0.65).
         var opponent = HealthyOpponent() with
         {
             Points = 70,
@@ -713,7 +840,7 @@ public class StatRulesEngineTests
 
         Assert.Contains(ProblemTag.TurnoverProblem, tags);
         Assert.Contains(ProblemTag.InteriorDefenseProblem, tags);
-        Assert.Contains(ProblemTag.DefensiveReboundProblem, tags);
+        Assert.Contains(ProblemTag.LowDefensiveReboundPercentage, tags);
         Assert.Equal(tags.Distinct().Count(), tags.Count);
     }
 }

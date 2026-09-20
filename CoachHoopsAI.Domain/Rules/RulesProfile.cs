@@ -11,9 +11,6 @@ namespace CoachHoopsAI.Domain.Rules
         // Turnovers
         public int TurnoverDiffToFlag { get; set; } = 5;
 
-        // Rebounding
-        public int OpponentOffensiveReboundDiffToFlag { get; set; } = 5;
-
         // Three-point defense
         public double OpponentHotThreePct { get; set; } = 0.38;
         public int OpponentHotThreeAttemptsMin { get; set; } = 20;
@@ -92,5 +89,26 @@ namespace CoachHoopsAI.Domain.Rules
         // small-sample rate.
         public double OurLowFreeThrowRate { get; set; } = 0.18;
         public int OurLowFreeThrowRateAttemptsMin { get; set; } = 20;
+
+        // Defensive rebound percentage (Milestone 3; GameCalculatedMetricsCalculator/
+        // M2B) - current defaults, not universal basketball facts. Replaces
+        // DefensiveReboundProblem's old trigger (OpponentOffensiveReboundDiffToFlag,
+        // removed - opponent.OffensiveRebounds minus team.OffensiveRebounds, which
+        // never read team.DefensiveRebounds at all). This reads
+        // DefensiveReboundPercentage directly: our defensive rebounds divided by
+        // defensive-rebound opportunities (our defensive rebounds plus the
+        // opponent's offensive rebounds). OpportunitiesMin exists for the same
+        // small-sample reason as the AttemptsMin/PossessionsMin fields above, and
+        // mirrors their per-level values, since all gate a comparably-sized raw
+        // sample; unlike EstimatedPossessions (a subtraction that can go negative
+        // even on valid non-negative input), this denominator is a sum of two
+        // non-negative counts, so it can only be non-positive when both are exactly
+        // zero - OpportunitiesMin still protects against a real but trivial early
+        // live-game sample reading as a stable percentage. A low percentage here is
+        // a measured result only - it does not identify a tactical cause (box-out
+        // technique, positioning, effort, etc.); TeamStats has no data to support
+        // attributing one.
+        public double OurLowDefensiveReboundPct { get; set; } = 0.65;
+        public int OurLowDefensiveReboundPctOpportunitiesMin { get; set; } = 20;
     }
 }

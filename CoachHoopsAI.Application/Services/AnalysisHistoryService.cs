@@ -16,13 +16,14 @@ namespace CoachHoopsAI.Application.Services
         };
 
         // For V3.0 keep these constants in one place; later make them configurable.
-        // Bumped to 1.5: TooManyThreePointAttempts now gates volume on
-        // ThreePointAttemptRate (3PA/FGA) instead of an absolute 3PA count, with a
-        // FieldGoalsAttempted minimum sample - same ProblemTag, reused rather than
-        // retired, since the old trigger was a narrower version of the same volume
-        // concept (see Docs/03-domain-and-rules.md's "Findings (Milestone 3)"
-        // section, which also covers 1.3's and 1.4's changes).
-        private const string RulesetVersion = "1.5";
+        // Bumped to 1.6: DefensiveReboundProblem's trigger (an offensive-rebound
+        // differential that never read team.DefensiveRebounds) is retired -
+        // StatRulesEngine no longer emits it. LowDefensiveReboundPercentage
+        // (appended, new ordinal) replaces it, reading DefensiveReboundPercentage
+        // (M2B) directly - same ProblemTag.DefensiveReboundProblem kept only for
+        // already-persisted history (see Docs/03-domain-and-rules.md's "Findings
+        // (Milestone 3)" section, which also covers 1.3/1.4/1.5's changes).
+        private const string RulesetVersion = "1.6";
         private const string PromptVersion = "v2.0";
 
         public AnalysisHistoryService(IGameAnalysisService analysisService, IAnalysisRepository repo)

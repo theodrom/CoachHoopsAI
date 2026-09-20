@@ -54,10 +54,11 @@ It defines the concepts, language, and deterministic rules used to analyze games
   `GameFormat`/`GameTiming` adds live estimated pace. Reuses
   CalculatedMetricsCalculator rather than duplicating it
 - `StatRulesEngine`'s `LowEffectiveFieldGoalPercentage`, `LowFreeThrowRate`,
-  `OffensiveEfficiencyProblem`, and `TooManyThreePointAttempts` rules
-  (Milestone 3) are the production consumers of this layer so far, reading
-  `EffectiveFieldGoalPercentage`/`FreeThrowRate`/`OffensiveRating`/
-  `ThreePointAttemptRate`/`ThreePointPercentage` via
+  `OffensiveEfficiencyProblem`, `TooManyThreePointAttempts`, and
+  `LowDefensiveReboundPercentage` rules (Milestone 3) are the production
+  consumers of this layer so far, reading `EffectiveFieldGoalPercentage`/
+  `FreeThrowRate`/`OffensiveRating`/`ThreePointAttemptRate`/
+  `ThreePointPercentage`/`DefensiveReboundPercentage` via
   `GameCalculatedMetricsCalculator` directly; the rest of M2A/M2B/M2C still
   has no consumer - see `Docs/03-domain-and-rules.md`
 - `LowFreeThrowRate` replaced `LackOfPaintPressure`'s trigger (fouls + score,
@@ -73,6 +74,11 @@ It defines the concepts, language, and deterministic rules used to analyze games
   (3PA/FGA) instead of an absolute 3PA count, with a `FieldGoalsAttempted`
   minimum sample; the "shooting badly" gate (`TooManyThreePctMax`) is
   unchanged - see `Docs/03-domain-and-rules.md`
+- `LowDefensiveReboundPercentage` replaced `DefensiveReboundProblem`'s
+  trigger (an offensive-rebound differential that never read
+  `team.DefensiveRebounds`, unlike the two refinements above); the
+  `DefensiveReboundProblem` enum member is kept, but `StatRulesEngine` no
+  longer triggers it - see `Docs/03-domain-and-rules.md`
 
 ---
 

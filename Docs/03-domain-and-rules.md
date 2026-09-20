@@ -547,6 +547,105 @@ values in `CoachHoopsAI.Api/appsettings.json`) are current defaults, not
 universal basketball facts - and, per the above, a coaching-judgment cutoff
 rather than a mathematically-derived break-even point.
 
+### `DefensiveReboundProblem` (retired) and `LowDefensiveReboundPercentage` (its replacement)
+
+**Old trigger:**
+
+```text
+opponent.OffensiveRebounds - team.OffensiveRebounds >= profile.OpponentOffensiveReboundDiffToFlag
+```
+
+Auditing this against the data it reads: **both terms are OFFENSIVE rebound
+counts** - the opponent's second-chance recoveries on their own misses, and
+our own second-chance recoveries on our own misses. `team.DefensiveRebounds`,
+the one raw stat that actually describes our defensive rebounding, was
+never read at all. A team with a genuine defensive-rebounding problem could
+dodge this flag simply by also offensive-rebounding well (which shrinks the
+differential but says nothing about defense), and a team with perfectly
+adequate defensive rebounding could trip it by having a quiet night on its
+own offensive glass. The name promised a defensive-rebounding finding the
+trigger never measured.
+
+**Decision: retired, not reused.** Same test as `LackOfPaintPressure`'s
+retirement above, and the opposite conclusion from `OffensiveEfficiencyProblem`'s
+and `TooManyThreePointAttempts`' refinements: did the old trigger read data
+that is at least thematically related to what the tag's name claims, or
+something essentially unrelated? Both of those reused triggers read data
+squarely on-topic (shooting percentage for an efficiency finding, 3PA volume
+for a three-point-volume finding), just measured imprecisely.
+`DefensiveReboundProblem`'s old trigger reads zero defensive-rebounding data;
+it is an offensive-rebounding differential, a different phase of the game
+entirely, mislabeled. Reusing the tag with a corrected trigger would have
+made `ProblemTag.DefensiveReboundProblem` mean two unrelated things across a
+single database's history. Instead:
+
+- `StatRulesEngine` no longer triggers `DefensiveReboundProblem` at all.
+- The enum member is kept, never removed, so existing analysis records that
+  contain it (persisted as the raw ordinal `6`) keep resolving to a real
+  label instead of `Unknown(6)` in Admin.
+- `AnalysisHistoryService.RulesetVersion` was bumped (`1.5` -> `1.6`) to mark
+  that the active rule set changed under these records.
+- `RulesProfile.OpponentOffensiveReboundDiffToFlag`, the old trigger's only
+  threshold field, was removed rather than left unused (it had no other
+  consumer).
+
+**Replacement: `LowDefensiveReboundPercentage`.** M2B already calculates
+exactly the right metric for this tag's intended meaning:
+`DefensiveReboundPercentage = TeamDREB / (TeamDREB + OpponentOREB)` - the
+share of **available defensive-rebound opportunities** (our own defensive
+rebounds plus the opponent's offensive rebounds - the boards that were
+missed and up for grabs on our defensive end) that we actually secured. The
+new trigger:
+
+```text
+team.DefensiveRebounds + opponent.OffensiveRebounds >= profile.OurLowDefensiveReboundPctOpportunitiesMin
+  AND
+teamMetrics.DefensiveReboundPercentage.HasValue
+  AND
+teamMetrics.DefensiveReboundPercentage.Value <= profile.OurLowDefensiveReboundPct
+```
+
+where `teamMetrics` is the same `GameCalculatedMetricsCalculator.Calculate(team, opponent).Team`
+already computed for the other M3 rules above - no new calculator call.
+
+**Minimum-opportunities gate**, mirroring `OffensiveEfficiencyProblem`'s
+`PossessionsMin` reasoning: without it, a team a handful of rebounds into a
+live, in-progress game could post an extreme percentage (e.g. `1/1 = 1.0` or
+`0/0` undefined) from a trivial sample. Unlike `EstimatedPossessions` (a
+subtraction that can go negative even on valid non-negative raw input, see
+the open validation question in `CLAUDE.md`), this denominator is a **sum**
+of two non-negative counts, so `DefensiveReboundPercentage` is only `null`
+when both `TeamDREB` and `OpponentOREB` are exactly zero - there is no
+"negative opportunities" edge case analogous to `OffensiveEfficiencyProblem`'s.
+`OurLowDefensiveReboundPctOpportunitiesMin` still matters, though: it's the
+same small-live-sample protection as every other M3 minimum-sample gate, not
+just a null check.
+
+**Coach-facing framing.** The finding describes how many of the available
+defensive rebounds the team actually secured - a measured share, not an
+assignment of blame. It does **not** claim that a particular positioning
+error, boxing-out technique, or lack of effort caused the result; `TeamStats`
+has no positioning, assignment, or possession-by-possession data to support
+attributing a cause. Unlike `TooManyThreePointAttempts`, the new tag's bare
+name (`LowDefensiveReboundPercentage`) does not overclaim anything on its
+own - "low percentage" is already a literal description, not an implicit
+verdict - so no Admin-label or LLM-prompt substitution was needed for it;
+`ProblemTagDto.MapTag` uses the same literal Title Case as
+`LowEffectiveFieldGoalPercentage`/`LowFreeThrowRate`, and the LLM prompt
+sends its bare enum name like every tag that doesn't need special handling.
+The retired `DefensiveReboundProblem` needs no such substitution either,
+since `StatRulesEngine` never emits it for new analyses - it only appears in
+already-persisted history, which is never re-sent to the LLM.
+
+Thresholds (`RulesProfile.OurLowDefensiveReboundPct`/
+`OurLowDefensiveReboundPctOpportunitiesMin`, and the per-level values in
+`CoachHoopsAI.Api/appsettings.json`) are current defaults, not universal
+basketball facts.
+
+`LowDefensiveReboundPercentage` was appended at the very end of the
+`ProblemTag` enum (after `LowFreeThrowRate`), for the same ordinal-safety
+reason documented above.
+
 ## Philosophy
 
 Rules represent �coach-agreeable� heuristics, not absolute truth.
